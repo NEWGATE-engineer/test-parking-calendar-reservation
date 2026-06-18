@@ -1,0 +1,25 @@
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    container_name: parking-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Newgate@2026"   # 8文字以上・英大小+数字+記号
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: parking-azurite
+    ports:
+      - "10000:10000"   # Blob
+      - "10001:10001"   # Queue
+      - "10002:10002"   # Table
+    volumes:
+      - azuritedata:/data
+
+volumes:
+  sqldata:
+  azuritedata:

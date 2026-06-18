@@ -1,0 +1,20 @@
+# Node
+node_modules/
+dist/
+*.log
+
+# 環境変数・秘密情報（絶対にコミットしない）
+.env
+.env.*
+functions/local.settings.json
+
+# Flutter
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins*
+
+# Docker のローカルデータ（任意。ボリュームで持つ場合は不要）
+.docker-data/
+
+# その他
+.DS_Store

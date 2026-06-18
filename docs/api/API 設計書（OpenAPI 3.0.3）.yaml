@@ -1,0 +1,490 @@
+openapi: 3.0.3
+info:
+  title: 駐車場予約システム API
+  version: 0.1.0
+  description: >
+    MVP の HTTP API 契約。バックエンド処理一覧の A 群（App Service ハンドラ）に対応。
+    時刻はすべて UTC（RFC 3339, 例 2026-06-18T09:00:00Z）。認証は Bearer JWT。
+    金額は最小通貨単位の数値（JPY は円）。
+    エラーは Error スキーマで返し、retryable で再試行可否を、code で詳細理由を表す。
+
+servers:
+  - url: https://{host}/api
+    description: App Service
+    variables:
+      host:
+        default: example.azurewebsites.net
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+    description: 認証・会員登録
+  - name: spots
+    description: 区画・満空・予約可否
+  - name: reservations
+    description: 予約・入出庫・料金
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: 会員登録
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: 登録成功（トークン発行）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '409':
+          description: メールアドレス重複
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: ログイン
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: 認証成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: レート制限・アカウントロック
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: トークン再発行
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: 再発行成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: ログアウト（リフレッシュトークンを失効）
+      description: Bearer のアクセストークンで認証し、ボディの refresh_token を失効する（MVP は access denylist 無し）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '204': { description: 成功 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /spots:
+    get:
+      tags: [spots]
+      summary: 区画一覧と現在の満空状況
+      responses:
+        '200':
+          description: 区画一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Spot' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /spots/availability:
+    get:
+      tags: [spots]
+      summary: 対象時間帯の予約可否（best-effort）
+      description: >
+        予約有無＋バッファ＋デバイス健全性で算出する暫定値。確定は予約作成時の競合チェック。
+      parameters:
+        - name: start
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: end
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: 区画ごとの可否
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SpotAvailability' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /reservations:
+    post:
+      tags: [reservations]
+      summary: 予約作成
+      description: serializable で競合チェック（バッファ込み）＋デバイス健全性を確認。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReservationRequest' }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: >
+            競合またはデバイス不健全。Error.code で区別する：
+            conflict_overlap（時間帯重複）／conflict_buffer（バッファ未満の近接）／
+            device_unhealthy（デバイス不健全）。availability の reason と語彙をそろえる。
+            device_unhealthy の判定閾値（last_seen_at の許容時間, §12 #14）は availability と
+            同一の設定値を共有し、「予約可と出たのに作れない」食い違いを防ぐ。
+            いずれも retryable=false（別時間・別区画の再選択を促す）。
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    get:
+      tags: [reservations]
+      summary: 自分の予約・利用履歴一覧
+      description: MVP は全件を配列で返す。履歴増大に備え limit/cursor は将来追加の余地（今は不要）。
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/ReservationStatus' }
+      responses:
+        '200':
+          description: 予約一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReservationResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /reservations/{id}:
+    description: 他人の予約 ID は存在しないものとして 404 を返す（情報漏洩防止のため 403 は使わない）。
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
+    put:
+      tags: [reservations]
+      summary: 予約変更（reserved のみ可）
+      description: 予約枠の見込み額を再計算してレスポンスに返す（Fee 行は完了時に作成）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateReservationRequest' }
+      responses:
+        '200':
+          description: 変更成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: reserved 以外は変更不可、または競合（Error.code で区別）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [reservations]
+      summary: 予約キャンセル（reserved のみ可）
+      responses:
+        '204': { description: 取消成功 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: reserved 以外は取消不可（retryable=false）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reservations/{id}/gate-down:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
+    post:
+      tags: [reservations]
+      summary: ロック板 DOWN 指示（入庫）
+      description: >
+        有効性・期間を確認。在車なら IoT 送信前に物理占有として 409（retryable=false）。
+        デバイス事前 NG（last_seen_at 古い）は 503 で即時失敗（retryable=false）、
+        接続あり無応答は 504（retryable=true）。
+        request_id で冪等性を担保し、同一 request_id の再送には初回と同じ結果
+        （同じ command_id・同じステータス）を返す。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GateDownRequest' }
+      responses:
+        '200':
+          description: ダウン成功（入庫可）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GateDownResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 区画が物理占有中（別予約の超過など）。retryable=false（再試行不可）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503':
+          description: デバイス不健全（事前 NG・即時失敗）。retryable=false
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '504':
+          description: デバイス無応答（タイムアウト）。retryable=true（再試行可）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reservations/{id}/finish:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
+    post:
+      tags: [reservations]
+      summary: 利用終了の申告
+      description: >
+        終了意思を受け付ける。在車中は end_time を現在に前倒しし、completed 確定と
+        料金確定は空車検知後の経路に合流する（在車のまま完了にしない）。
+        active/overstay 以外（既に完了等）への再申告は 409。前倒しの再実行は実害なし。
+      responses:
+        '200':
+          description: 受付（完了は出庫検知後に確定）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: active / overstay 以外は申告不可
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /reservations/{id}/fee:
+    parameters:
+      - $ref: '#/components/parameters/ReservationId'
+    get:
+      tags: [reservations]
+      summary: 料金の取得
+      description: Fee 未記録なら status=pending（確定待ち）を返す。
+      responses:
+        '200':
+          description: 料金
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fee' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ReservationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthorized:
+      description: 認証エラー
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: 対象が存在しない（他人の予約を含む）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: 入力検証エラー
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: >
+            機械可読の理由コード。例：physical_occupancy / device_unhealthy /
+            conflict_overlap / conflict_buffer / timeout / validation_error
+          example: physical_occupancy
+        message: { type: string, example: 区画が使用中です }
+        retryable:
+          type: boolean
+          description: 再試行で解消し得るか（504=true、409 物理占有/競合=false など）
+        retry_after:
+          type: integer
+          nullable: true
+          description: 再試行までの推奨待機秒数（任意）
+
+    RegisterRequest:
+      type: object
+      required: [email, password, terms_version]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 8 }
+        name: { type: string, nullable: true }
+        terms_version: { type: string, example: "2026-01" }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    TokenResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, example: Bearer }
+        expires_in: { type: integer, description: アクセストークンの有効秒数, example: 900 }
+
+    Occupancy:
+      type: string
+      enum: [occupied, vacant, unknown]
+      description: unknown は最終通信が古い（健全性 NG）場合
+
+    Spot:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        occupancy: { $ref: '#/components/schemas/Occupancy' }
+        device_healthy: { type: boolean }
+
+    SpotAvailability:
+      type: object
+      properties:
+        spot_id: { type: string, format: uuid }
+        name: { type: string }
+        available: { type: boolean }
+        reason:
+          type: string
+          enum: [ok, reserved, buffer, device_unhealthy]
+          description: available=false の理由（Error.code と語彙をそろえる）
+
+    CreateReservationRequest:
+      type: object
+      description: end_time は start_time より後、過去日時は不可（違反は 422）。時刻は UTC。
+      required: [spot_id, start_time, end_time]
+      properties:
+        spot_id: { type: string, format: uuid }
+        start_time: { type: string, format: date-time }
+        end_time: { type: string, format: date-time }
+
+    UpdateReservationRequest:
+      type: object
+      description: start_time/end_time を変更する場合は end_time > start_time、過去日時は不可（違反は 422）。
+      properties:
+        spot_id: { type: string, format: uuid }
+        start_time: { type: string, format: date-time }
+        end_time: { type: string, format: date-time }
+
+    ReservationStatus:
+      type: string
+      enum: [reserved, active, completed, cancelled, no_show, overstay]
+
+    ReservationResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        spot_id: { type: string, format: uuid }
+        start_time: { type: string, format: date-time }
+        end_time: { type: string, format: date-time }
+        status: { $ref: '#/components/schemas/ReservationStatus' }
+        created_at: { type: string, format: date-time }
+        estimated_slot_fee:
+          type: number
+          nullable: true
+          description: 予約枠の見込み額（作成・変更時に返す。確定額は Fee）
+
+    GateDownRequest:
+      type: object
+      required: [request_id]
+      properties:
+        request_id:
+          type: string
+          description: 冪等キー。送信操作ごとに採番（トランスポート再送は同一キーで吸収）
+
+    GateDownResponse:
+      type: object
+      properties:
+        result:
+          type: string
+          enum: [down]
+          description: 成功時のみ返る（板ダウン）
+        command_id: { type: string, format: uuid }
+
+    FeeStatus:
+      type: string
+      enum: [pending, confirmed]
+
+    Fee:
+      type: object
+      properties:
+        reservation_id: { type: string, format: uuid }
+        slot_fee: { type: number }
+        overstay_fee: { type: number }
+        total: { type: number }
+        status: { $ref: '#/components/schemas/FeeStatus' }
+        calculated_at: { type: string, format: date-time, nullable: true }

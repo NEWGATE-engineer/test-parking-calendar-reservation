@@ -61,11 +61,11 @@ argument-hint: "[baseline-ref]  # 省略=PR 全体レビュー / 指定=その�
    - CLAUDE.md の要点（プロジェクト全体ルール）
 
    並列実行する 5 エージェント:
-   1. `code-quality-reviewer`     — クリーンコード・SRP・PSR-12/PEP 8/TS 規約
-   2. `performance-reviewer`      — ボトルネック・複雑度・Bedrock コスト・S3 Vectors 効率
-   3. `test-coverage-reviewer`    — テスト不足・欠落シナリオ・モック設計の妥当性
-   4. `documentation-accuracy-reviewer` — CLAUDE.md / 設計書 / コードコメント / 行番号参照の整合
-   5. `security-code-reviewer`    — OWASP / IAM 最小権限 / .env 漏洩 / Mini Shai-Hulud 凍結ルール
+   1. `code-quality-reviewer`     — クリーンコード・SRP・TypeScript / Dart 規約・レイヤ分離
+   2. `performance-reviewer`      — ボトルネック・計算量・SQL serverless / Functions / IoT Hub の Azure コスト
+   3. `test-coverage-reviewer`    — テスト不足・欠落シナリオ・モック設計（Azure SQL / IoT Hub）の妥当性
+   4. `documentation-accuracy-reviewer` — CLAUDE.md / 設計書(docs) / OpenAPI / DDL / 行番号参照の整合
+   5. `security-code-reviewer`    — OWASP / 自前 JWT 認証認可 / .env・接続文字列漏洩 / IoT 冪等・サプライチェーン
 
    **増分再レビュー時（baseline 引数が第一防御・第二防御を通過した場合）は、各エージェントへのプロンプト冒頭で必ず `re-review` と宣言し、
    「レビューモードの決定」で計算した増分差分だけを対象として渡すこと**。各エージェントは渡された差分の範囲外を見ない。

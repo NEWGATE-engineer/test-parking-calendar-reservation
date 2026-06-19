@@ -24,6 +24,8 @@ CREATE TABLE [User] (
     password_hash   NVARCHAR(255)    NOT NULL,
     name            NVARCHAR(100)    NULL,            -- F2-1（メール＋パスワード登録）に合わせ任意
     status          VARCHAR(20)      NOT NULL CONSTRAINT DF_User_status  DEFAULT 'active',
+    failed_attempts INT              NOT NULL CONSTRAINT DF_User_failed  DEFAULT 0,  -- ログイン失敗回数（F1-5 アカウントロック。MVP は User 列で保持＝認証設計§6）
+    lock_until      DATETIME2(3)     NULL,            -- ロック解除時刻（NULL=未ロック）。UTC
     created_at      DATETIME2(3)     NOT NULL CONSTRAINT DF_User_created DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_User       PRIMARY KEY CLUSTERED (id),
     CONSTRAINT UQ_User_email UNIQUE (email),
@@ -177,6 +179,23 @@ CREATE TABLE Notification (
 );
 GO
 
+------------------------------------------------------------
+-- 11. リフレッシュトークン（REFRESH_TOKEN）  自前 JWT 認証（認証設計§7）
+--     SHA-256(ソルト無) で token_hash 保存・ローテーション・family_id 系統失効
+------------------------------------------------------------
+CREATE TABLE RefreshToken (
+    id          UNIQUEIDENTIFIER NOT NULL CONSTRAINT DF_RT_id      DEFAULT NEWSEQUENTIALID(),
+    user_id     UNIQUEIDENTIFIER NOT NULL,
+    family_id   UNIQUEIDENTIFIER NOT NULL,            -- ログインで採番、ローテーションで引継ぎ（系統失効の単位）
+    token_hash  VARBINARY(32)    NOT NULL,            -- 平文トークンの SHA-256（ソルト無・決定的）
+    expires_at  DATETIME2(3)     NOT NULL,            -- UTC
+    revoked_at  DATETIME2(3)     NULL,                -- 失効時刻（NULL=有効）
+    created_at  DATETIME2(3)     NOT NULL CONSTRAINT DF_RT_created DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT PK_RefreshToken PRIMARY KEY CLUSTERED (id),
+    CONSTRAINT FK_RT_user      FOREIGN KEY (user_id) REFERENCES [User](id)
+);
+GO
+
 /* ============================================================
    インデックス
    ============================================================ */
@@ -227,6 +246,17 @@ CREATE INDEX IX_Notification_user
     ON Notification (user_id, sent_at);
 GO
 
+-- リフレッシュトークン：token_hash で等値1行引き（ローテーション照合）、family_id で系統一括失効
+CREATE UNIQUE INDEX UQ_RefreshToken_hash
+    ON RefreshToken (token_hash);
+GO
+CREATE INDEX IX_RefreshToken_family
+    ON RefreshToken (family_id);
+GO
+CREATE INDEX IX_RefreshToken_user
+    ON RefreshToken (user_id);
+GO
+
 /* ============================================================
    詳細設計メモ（記録のみ）
    ------------------------------------------------------------
@@ -247,4 +277,10 @@ GO
    - [User].name は F2-1（メール＋パスワード登録）に合わせ NULL 許容。登録 UI が氏名を取るなら NOT NULL に変更。
    - FK 索引：Notification(user_id) は追加済み。Consent(user_id) は低頻度のため必要時に追加。
    - total は計算列（PERSISTED）化したため slot_fee/overstay_fee からアプリで再計算・代入しない。
+   - 認証（自前 JWT・認証設計§7）：RefreshToken は token_hash(SHA-256 ソルト無) を UNIQUE で等値照合し、
+     ローテーションは「WHERE id=@id AND revoked_at IS NULL の条件付き UPDATE が1件成功した側のみ新ペア発行」
+     とする（状態遷移と同じ原則）。失効済み再使用検知時は family_id で系統一括失効。
+     期限切れ/失効済み行はタイマー Functions cleanupTokens で定期 DELETE（テーブル肥大防止）。
+   - アカウントロック（F1-5）：失敗回数・ロック時刻は MVP では [User].failed_attempts / lock_until で保持。
+     キャッシュ運用や専用テーブルに移す場合は本2列を廃し別管理に切り替える（認証設計§6）。
    ============================================================ */

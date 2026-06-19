@@ -12,6 +12,7 @@ erDiagram
   USER ||--o{ CONSENT : "同意する"
   USER ||--o{ COMMAND_LOG : "指示する"
   USER ||--o{ NOTIFICATION : "受け取る"
+  USER ||--o{ REFRESH_TOKEN : "発行"
   PARKING_SPOT ||--|| DEVICE : "設置"
   PARKING_SPOT ||--o{ RESERVATION : "対象"
   RESERVATION ||--o{ USAGE_RECORD : "入出庫"
@@ -27,7 +28,18 @@ erDiagram
     string password_hash "パスワードハッシュ"
     string name "氏名"
     string status "状態"
+    int failed_attempts "ログイン失敗回数(F1-5)"
+    timestamp lock_until "ロック解除時刻(NULL=未ロック)"
     timestamp created_at "登録日時"
+  }
+  REFRESH_TOKEN {
+    uuid id PK "トークンID"
+    uuid user_id FK "会員ID"
+    uuid family_id "系統ID(失効単位)"
+    binary token_hash UK "SHA-256(ソルト無)"
+    timestamp expires_at "有効期限"
+    timestamp revoked_at "失効時刻(NULL=有効)"
+    timestamp created_at "発行日時"
   }
   CONSENT {
     uuid id PK "同意ID"
@@ -113,9 +125,27 @@ erDiagram
 | パスワードハッシュ | password_hash | string | | 平文保存不可 |
 | 氏名 | name | string | | |
 | 状態 | status | string | | `active` / `withdrawn` |
+| ログイン失敗回数 | failed_attempts | int | | F1-5 アカウントロック。MVP は User 列で保持（認証設計§6） |
+| ロック解除時刻 | lock_until | timestamp | | NULL=未ロック。UTC |
 | 登録日時 | created_at | timestamp | | |
 
-> ポイントは Phase 2 のため MVP では列を持たない。
+> ポイントは Phase 2 のため MVP では列を持たない。failed_attempts / lock_until はブルートフォース対策（F1-5）。キャッシュ運用や専用テーブルに移す場合は本2列を廃する。
+
+### リフレッシュトークン（REFRESH_TOKEN）
+
+自前 JWT 認証（認証設計§7）。提示トークンの SHA-256（ソルト無）を `token_hash` に保存し、等値照合＋ローテーション、`family_id` 単位で系統失効。
+
+| 論理名 | 物理名 | 型 | キー | 備考 |
+| --- | --- | --- | --- | --- |
+| トークンID | id | uuid | PK | |
+| 会員ID | user_id | uuid | FK | |
+| 系統ID | family_id | uuid | | ログインで採番、ローテーションで引継ぎ（失効単位） |
+| トークンハッシュ | token_hash | binary | UK | 平文の SHA-256（ソルト無・決定的）。VARBINARY(32) |
+| 有効期限 | expires_at | timestamp | | UTC |
+| 失効時刻 | revoked_at | timestamp | | NULL=有効 |
+| 発行日時 | created_at | timestamp | | |
+
+> 期限切れ・失効済み行はタイマー Functions `cleanupTokens` で定期削除。
 
 ### 同意記録（CONSENT）
 
@@ -189,7 +219,7 @@ erDiagram
 | 冪等キー | request_id | string | UK | 重複 DOWN 指示の吸収 |
 | コマンド種別 | command_type | string | | `DOWN` |
 | 指示日時 | issued_at | timestamp | | 入庫待ちタイムアウトの基準時刻 |
-| 結果 | result | string | | `success` / `failure` |
+| 結果 | result | string | | `pending` / `success` / `failure`（受信時 pending → 結果で更新。DDL `CK_Cmd_result` と一致） |
 | デバイス応答日時 | device_responded_at | timestamp | | |
 
 ### デバイスイベント（DEVICE_EVENT）
@@ -223,6 +253,7 @@ erDiagram
 | 会員 → 同意記録 | 1 : 多 | |
 | 会員 → コマンドログ | 1 : 多 | DOWN 指示の操作者 |
 | 会員 → 通知ログ | 1 : 多 | 通知の受信者 |
+| 会員 → リフレッシュトークン | 1 : 多 | 自前 JWT のローテーション・系統失効 |
 | 駐車区画 → AUTOSTAND | 1 : 1 | 区画にデバイス1台（MVP前提） |
 | 駐車区画 → 予約 | 1 : 多 | 区画ごとの予約 |
 | 予約 → 利用記録 | 1 : 多 | 期間内の複数回入出庫 |
@@ -239,7 +270,7 @@ erDiagram
 - 区画とデバイスは 1:1。FK は `DEVICE.spot_id` に集約し、`PARKING_SPOT.device_id` は冗長のため持たない。設置前・故障交換中にデバイス未割当を許す場合は `||--o|`（区画は 0..1 台）に緩和する。
 - 在車状態の source of truth：`DEVICE.last_occupancy` はデバイスからの生テレメトリ、`PARKING_SPOT.occupancy` はアプリが参照する確定値とする。Functions がテレメトリ受信時に後者を更新する。
 - `COMMAND_LOG.request_id` を一意キーにし、DOWN 指示の冪等性（要件 F4-7）をスキーマで担保する。
-- 認証を自前 JWT にする場合は、リフレッシュトークン／失効 denylist 用のテーブル（+1）が必要。Entra External ID に倒す場合は外部管理で不要（§12 #6）。
+- 認証は自前 JWT に確定（§12 #6）。リフレッシュトークン管理として `REFRESH_TOKEN` テーブルを追加済み（token_hash 等値照合＋ローテーション＋family_id 系統失効）。MVP は access の denylist を持たない方針のため失効用 denylist テーブルは不要。Entra External ID に倒す場合は外部管理で本テーブルは不要。
 - §5 の論理状態（ブロック中／予約待機／入庫待ち／在車中／超過中）は列として持たず、予約状態＋ロック板位置＋在車状態＋最新の未完了 DOWN（`COMMAND_LOG.issued_at`）から導出する。入庫待ちのタイムアウト判定のため「予約ごとの未完了 DOWN を引ける」索引・クエリを用意する。
 - `DEVICE.last_seen_at` をデバイス健全性の判定（予約可能性・満空表示、要件 §8）に使用する。
 - 日時はすべて UTC で保存し、表示時に JST へ変換する。

@@ -24,6 +24,11 @@ sequenceDiagram
       API-->>A: 409 区画使用中
       A-->>U: サポート導線（将来：振替/返金）
       Note over A,U: 再試行では解消しないためループ終了
+    else デバイス事前NG（last_seen_at が古い・不健全）
+      API->>DB: CommandLog update=failure（device_unhealthy）
+      API-->>A: 503 デバイス不健全（即時失敗）
+      A-->>U: 一時的にデバイス不調（時間をおいて再試行/サポート）
+      Note over A,U: IoT を呼ぶ前に即時失敗（タイムアウト待ちを避ける）。retryable=false
     else デバイス無応答（接続あり・タイムアウト）
       API->>H: ダイレクトメソッド DOWN
       H-->>API: タイムアウト
@@ -50,7 +55,8 @@ sequenceDiagram
 各試行は「gate-down 受信 → 確認＋CommandLog を pending で記録 → 分岐」を1サイクルとし、`loop` で初回と再試行を包む。
 
 - **正常**：DOWN が成功し、CommandLog を success に更新。通常の入庫フロー（コアフロー②）へ抜けてループ終了。
-- **デバイス無応答（接続あり・タイムアウト）**：ダイレクトメソッドを送ったが応答が返らずタイムアウト。CommandLog を failure（timeout）に更新し、利用者は再試行できる（ループ継続）。上限到達で失敗通知＋サポート導線。
+- **デバイス事前NG（不健全・即時失敗）**：`Device.last_seen_at` が健全性閾値（§12 #14, 仮 N 分）を超えて古い場合、IoT を呼ぶ前に即時失敗。CommandLog を failure（device_unhealthy）に更新し、**503**（`retryable=false`）を返す。タイムアウト待ち（504）を避けるのが要点で、OpenAPI の 503/504 の区別に対応する。
+- **デバイス無応答（接続あり・タイムアウト）**：ダイレクトメソッドを送ったが応答が返らずタイムアウト。CommandLog を failure（timeout）に更新し、**504**（`retryable=true`）で利用者は再試行できる（ループ継続）。上限到達で失敗通知＋サポート導線。
 - **区画が物理占有中**：前の利用者の超過などで区画が塞がっている（§4.3.2 の残存リスク）。IoT を呼ぶ前に在車状態で即時拒否し、CommandLog を failure（物理占有）に更新。再試行では解消しないためループ終了し、サポート導線（将来：振替/返金）へ。
 
 ---
@@ -67,5 +73,5 @@ sequenceDiagram
 
 ## 詳細設計メモ（記録のみ）
 
-- HTTP ステータス：物理占有＝409 Conflict、タイムアウト＝504 を割り当てる。物理占有は 423 Locked / 503 も候補だが流儀の範囲で、409 で問題ない。
+- HTTP ステータス：物理占有＝409 Conflict（`retryable=false`）、デバイス事前NG（不健全）＝503（`retryable=false`・即時失敗）、無応答＝504（`retryable=true`）を割り当てる（OpenAPI の gate-down 定義と一致）。物理占有は 423 Locked / 503 も候補だが流儀の範囲で、409 で問題ない。
 - 再試行の上限回数・間隔（バックオフ）は詳細設計で確定する。

@@ -58,6 +58,24 @@ flutter run -d web-server --web-port 5000 --dart-define=API_BASE_URL=http://loca
 | 環境構築手順書 | [docs/setup/](docs/setup/) |
 | 設計判断記録（ADR） | [docs/decisions/](docs/decisions/) |
 
+## 開発フロー
+
+ブランチ戦略は **Git Flow**（`feature` → `develop` → `main`）。
+
+- 作業は `develop` から feature ブランチを切って行い、`develop` 向けに PR を出す。
+- `main` は本番相当。`develop` のリリースを `main` へマージする。
+
+### PR レビュー（claude-code-action）
+
+PR のコメントに次を書くと、5観点（コード品質・パフォーマンス・セキュリティ・テスト・ドキュメント整合）の並列レビューが起動する。
+
+```
+@claude /review-pr
+```
+
+- `@claude` がワークフロー起動の必須トリガー。`/review-pr` だけでは起動しない。
+- レビュー定義は [.claude/commands/review-pr.md](.claude/commands/review-pr.md) と [.claude/agents/](.claude/agents/)。CI 定義は [.github/workflows/claude.yml](.github/workflows/claude.yml)。
+
 ## ステータス
 
 - [x] 環境構築（WSL2 + Docker、Azure リソース一式）

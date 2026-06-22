@@ -19,6 +19,7 @@
 | [functions/](functions/) | Azure Functions（IoT メッセージ・タイマー走査・通知） |
 | [device-sim/](device-sim/) | 疑似 AUTOSTAND（`azure-iot-device` / Node.js） |
 | [mobile/](mobile/) | Flutter アプリ（Web 中心） |
+| [migrations/](migrations/) | DB スキーマの連番マイグレーション（全サービス共通） |
 | [docs/](docs/) | 要件定義・設計ドキュメント一式 |
 | [docker-compose.yml](docker-compose.yml) | ローカル SQL Server / Azurite |
 
@@ -79,7 +80,7 @@ PR のコメントに次を書くと、5観点（コード品質・パフォー�
 ## ステータス
 
 - [x] 環境構築（WSL2 + Docker、Azure リソース一式）
-- [ ] DB スキーマ適用（連番マイグレーション）
+- [x] DB スキーマ適用（連番マイグレーション — [migrations/](migrations/)）
 - [ ] バックエンド API 実装（OpenAPI 準拠）
 - [ ] Functions 実装（ライフサイクル走査・IoT 連携）
 - [ ] Flutter アプリ実装

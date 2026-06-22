@@ -199,9 +199,9 @@ CREATE INDEX IX_Reservation_spot_time
     ON Reservation (spot_id, start_time, end_time) INCLUDE (status);
 GO
 
--- マイページの予約・履歴一覧
+-- マイページの予約・履歴一覧（status/end_time を被覆してキー参照を回避）
 CREATE INDEX IX_Reservation_user
-    ON Reservation (user_id, start_time);
+    ON Reservation (user_id, start_time) INCLUDE (status, end_time);
 GO
 
 -- 予約ごとの未完了 DOWN を引く（入庫待ちタイムアウト判定／コマンド監査）

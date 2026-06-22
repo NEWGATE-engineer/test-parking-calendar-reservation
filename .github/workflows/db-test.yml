@@ -1,0 +1,41 @@
+name: DB schema test
+
+# migrations/ または本ワークフロー・compose を変更した PR で、
+# 実際に SQL Server を起動してスキーマ適用とスキーマ検証を回す（リグレッション検知）。
+on:
+  pull_request:
+    paths:
+      - 'migrations/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/db-test.yml'
+
+jobs:
+  db-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start SQL Server (docker compose)
+        run: docker compose up -d sql
+
+      - name: Wait for SQL Server readiness
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec parking-sql /opt/mssql-tools18/bin/sqlcmd \
+                 -S localhost -U sa -P "$(docker exec parking-sql printenv MSSQL_SA_PASSWORD)" \
+                 -C -Q "SELECT 1" >/dev/null 2>&1; then
+              echo "SQL Server ready"; exit 0
+            fi
+            echo "waiting... ($i)"; sleep 5
+          done
+          echo "SQL Server not ready in time"; docker logs parking-sql | tail -50; exit 1
+
+      - name: Apply migrations
+        run: ./migrations/apply.sh
+
+      - name: Test schema (constraints / idempotency / invalid input)
+        run: ./migrations/test_schema.sh
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

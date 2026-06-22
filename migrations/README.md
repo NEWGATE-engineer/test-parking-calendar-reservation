@@ -27,13 +27,23 @@ docker compose up -d            # parking-sql / azurite を起動
 
 環境変数で上書き可: `SQL_CONTAINER`（既定 `parking-sql`）／`SQL_DB`（既定 `parking`・英数字とアンダースコアのみ）／`SA_PASSWORD`。
 
+## テスト
+
+```bash
+./migrations/test_schema.sh     # 別DB(parking_test)に適用し、制約・べき等・不正入力を検証
+```
+
+CI でも PR が `migrations/**` を変更すると [.github/workflows/db-test.yml](../.github/workflows/db-test.yml) が `docker compose up` → `apply.sh` → `test_schema.sh` を回す（リグレッション検知）。
+
 ## 新しいマイグレーションの追加
 
-1. 既存ファイルは編集しない。`002_<説明>.sql`（ゼロ埋め連番）を追加する。
+1. 既存ファイルは編集しない。**3桁ゼロ埋め連番** `NNN_<説明>.sql`（例 `002_add_xxx.sql`）を追加する。`apply.sh` のグロブ `[0-9]*.sql` は辞書順で適用するため、桁数を揃えないと適用順が狂う。
 2. 設計を変えたら `docs/database/SQLServerDDL.sql` と `ER図.md` も更新する。
 3. `./migrations/apply.sh` で適用。
 
 ## メモ
 
 - `sqlcmd` の既定は `QUOTED_IDENTIFIER OFF` のため、PERSISTED 計算列（`Fee.total`）とフィルタ付きインデックスの作成には `-I` が必要（apply.sh で付与済み）。
+- パスワードは `SQLCMDPASSWORD` 環境変数で渡し、コマンドライン（argv）には載せない（`ps` への露出防止）。
 - 本番（Azure SQL）への適用は、同じ `.sql` を Azure 接続の実行系（CI／ポータル／別ランナー）で流す。接続先の差し替えのみで連番管理の考え方は共通。
+- **既知の限界（MVP）**: 各マイグレーションの「DDL 適用」と「版記録」はトランザクションで一体化していない。適用途中に強制中断（SIGINT 等）すると部分適用が残り、再実行で `CREATE TABLE` 重複エラーになりうる。その場合は対象 DB を作り直す（dev）。完全な原子適用は将来の課題（専用ツール導入時に解消）。

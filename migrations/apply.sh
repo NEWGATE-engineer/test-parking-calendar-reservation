@@ -23,9 +23,12 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTAINER="${SQL_CONTAINER:-parking-sql}"
 DB="${SQL_DB:-parking}"
 
-# SQL 識別子に展開する値は事前にバリデート（SQLi 防止・CLAUDE.md 原則）
+# SQL 識別子・docker 引数に展開する値は事前にバリデート（SQLi/誤注入 防止・CLAUDE.md 原則）
 if ! [[ "$DB" =~ ^[A-Za-z0-9_]+$ ]]; then
   echo "不正な SQL_DB 名: '$DB'（英数字とアンダースコアのみ可）" >&2; exit 1
+fi
+if ! [[ "$CONTAINER" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+  echo "不正な SQL_CONTAINER 名: '$CONTAINER'" >&2; exit 1
 fi
 
 # パスワードはリポジトリにハードコードしない。未指定ならコンテナの
@@ -36,6 +39,11 @@ if [ -z "$SA_PASSWORD" ]; then
 fi
 : "${SA_PASSWORD:?SA_PASSWORD を設定するか、$CONTAINER を起動して MSSQL_SA_PASSWORD を取得できる状態にしてください}"
 
+# パスワードはコマンドライン引数(-P)に置かず、SQLCMDPASSWORD 環境変数で渡す。
+# docker exec には -e SQLCMDPASSWORD（名前のみ）を渡し、値はクライアント環境から
+# 継承させることで、ホストの ps（argv）に値が露出しないようにする。
+export SQLCMDPASSWORD="$SA_PASSWORD"
+
 SQLCMD="/opt/mssql-tools18/bin/sqlcmd"
 
 # 同一ホストでの多重実行を直列化（冪等チェックと DDL 適用の競合防止）
@@ -44,9 +52,10 @@ flock 9
 
 # -C: 自己署名証明書を信頼（mssql-tools18）/ -b: SQL エラーで非0終了
 # -I: QUOTED_IDENTIFIER ON（sqlcmd 既定は OFF。PERSISTED 計算列・フィルタ付き索引の作成に必須）
-sqlcmd_db()     { docker exec -i "$CONTAINER" "$SQLCMD" -S localhost -U sa -P "$SA_PASSWORD" -C -I -b -d "$DB" "$@"; }
-sqlcmd_master() { docker exec -i "$CONTAINER" "$SQLCMD" -S localhost -U sa -P "$SA_PASSWORD" -C -I -b "$@"; }
-query_scalar()  { docker exec -i "$CONTAINER" "$SQLCMD" -S localhost -U sa -P "$SA_PASSWORD" -C -I -d "$DB" -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '[:space:]'; }
+# -e SQLCMDPASSWORD: パスワードを名前渡し（値は argv に出ない）。sqlcmd は同変数を自動使用
+sqlcmd_db()     { docker exec -i -e SQLCMDPASSWORD "$CONTAINER" "$SQLCMD" -S localhost -U sa -C -I -b -d "$DB" "$@"; }
+sqlcmd_master() { docker exec -i -e SQLCMDPASSWORD "$CONTAINER" "$SQLCMD" -S localhost -U sa -C -I -b "$@"; }
+query_scalar()  { docker exec -i -e SQLCMDPASSWORD "$CONTAINER" "$SQLCMD" -S localhost -U sa -C -I -b -d "$DB" -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '[:space:]'; }
 
 echo "== ターゲット: container=$CONTAINER db=$DB =="
 
@@ -69,7 +78,9 @@ for f in "$DIR"/[0-9]*.sql; do
   if ! [[ "$ver" =~ ^[0-9A-Za-z_-]+$ ]]; then
     echo "不正なマイグレーションファイル名: '$ver'" >&2; exit 1
   fi
-  if [ "$(query_scalar "SELECT COUNT(*) FROM dbo.SchemaMigrations WHERE version=N'$ver';")" = "0" ]; then
+  # $() を if 条件に直接書くと set -e が伝播しないため、変数に代入してから比較
+  applied_count="$(query_scalar "SELECT COUNT(*) FROM dbo.SchemaMigrations WHERE version=N'$ver';")"
+  if [ "$applied_count" = "0" ]; then
     echo "==> applying: $ver"
     sqlcmd_db < "$f"
     # 記録は WHERE NOT EXISTS で原子化（万一の二重記録を防ぐ）

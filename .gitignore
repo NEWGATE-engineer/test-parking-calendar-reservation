@@ -16,5 +16,8 @@ mobile/.flutter-plugins*
 # Docker のローカルデータ（任意。ボリュームで持つ場合は不要）
 .docker-data/
 
+# Claude Code（個人設定はコミットしない。agents/commands/CLAUDE.md は共有）
+.claude/settings.local.json
+
 # その他
 .DS_Store

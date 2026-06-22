@@ -16,6 +16,11 @@ CONTAINER="${SQL_CONTAINER:-parking-sql}"
 TESTDB="${TEST_DB:-parking_test}"
 SQLCMD="/opt/mssql-tools18/bin/sqlcmd"
 
+# テスト用 DB 名も SQL 文字列に展開するためバリデート（apply.sh と一貫）
+if ! [[ "$TESTDB" =~ ^[A-Za-z0-9_]+$ ]]; then
+  echo "不正な TEST_DB 名: '$TESTDB'（英数字とアンダースコアのみ可）" >&2; exit 1
+fi
+
 SA_PASSWORD="${SA_PASSWORD:-}"
 [ -z "$SA_PASSWORD" ] && SA_PASSWORD="$(docker exec "$CONTAINER" printenv MSSQL_SA_PASSWORD 2>/dev/null || true)"
 : "${SA_PASSWORD:?SA_PASSWORD を取得できません（$CONTAINER 起動済みか確認）}"

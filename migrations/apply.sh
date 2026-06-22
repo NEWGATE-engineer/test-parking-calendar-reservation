@@ -82,9 +82,19 @@ for f in "$DIR"/[0-9]*.sql; do
   applied_count="$(query_scalar "SELECT COUNT(*) FROM dbo.SchemaMigrations WHERE version=N'$ver';")"
   if [ "$applied_count" = "0" ]; then
     echo "==> applying: $ver"
-    sqlcmd_db < "$f"
-    # 記録は WHERE NOT EXISTS で原子化（万一の二重記録を防ぐ）
-    sqlcmd_db -Q "INSERT INTO dbo.SchemaMigrations(version) SELECT N'$ver' WHERE NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrations WHERE version=N'$ver');"
+    # DDL 適用と版記録を「単一トランザクション」で原子適用する。
+    # XACT_ABORT ON によりエラー時は全ロールバックされ、部分適用や
+    # 「適用済みだが版未記録」（途中中断時）の不整合が起こらない。
+    # トランザクションは GO バッチを跨げないため、GO を除去して単一バッチ化する
+    # （マイグレーションは単一バッチ前提。CREATE PROCEDURE 等のバッチ分割必須文は使わない）。
+    # $ver は ^[0-9A-Za-z_-]+$ でバリデート済みのため SQL 文字列へ安全に展開できる。
+    {
+      echo "SET XACT_ABORT ON;"
+      echo "BEGIN TRANSACTION;"
+      grep -viE '^[[:space:]]*GO[[:space:]]*$' "$f"
+      echo "INSERT INTO dbo.SchemaMigrations(version) SELECT N'$ver' WHERE NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrations WHERE version=N'$ver');"
+      echo "COMMIT TRANSACTION;"
+    } | sqlcmd_db
     echo "    done: $ver"
     applied_any=1
   else

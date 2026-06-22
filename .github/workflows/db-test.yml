@@ -20,10 +20,12 @@ jobs:
 
       - name: Wait for SQL Server readiness
         run: |
+          # パスワードは -P(argv) ではなく SQLCMDPASSWORD 名前渡しで露出を防ぐ（apply.sh と統一）
+          SQLCMDPASSWORD="$(docker exec parking-sql printenv MSSQL_SA_PASSWORD)"
+          export SQLCMDPASSWORD
           for i in $(seq 1 30); do
-            if docker exec parking-sql /opt/mssql-tools18/bin/sqlcmd \
-                 -S localhost -U sa -P "$(docker exec parking-sql printenv MSSQL_SA_PASSWORD)" \
-                 -C -Q "SELECT 1" >/dev/null 2>&1; then
+            if docker exec -i -e SQLCMDPASSWORD parking-sql /opt/mssql-tools18/bin/sqlcmd \
+                 -S localhost -U sa -C -Q "SELECT 1" >/dev/null 2>&1; then
               echo "SQL Server ready"; exit 0
             fi
             echo "waiting... ($i)"; sleep 5

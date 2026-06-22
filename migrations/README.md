@@ -22,8 +22,10 @@ docker compose up -d            # parking-sql / azurite を起動
 - 既定でローカル Docker の `parking-sql` コンテナ内 `sqlcmd` に対して実行する。
 - DB（`parking`）と `SchemaMigrations` 表が無ければ自動作成する。
 - 適用済みの版は再実行時に skip される（べき等）。
+- **SA パスワードはスクリプトに持たない**。`SA_PASSWORD` 未指定時はコンテナの `MSSQL_SA_PASSWORD`（`docker-compose.yml` が唯一の情報源）から取得する。
+- 同一ホストでの多重実行は `flock` で直列化する。**複数ホストからの並列適用は対象外**（分散 CI で並列実行する場合は専用ツール／`sp_getapplock` を検討）。
 
-環境変数で上書き可: `SQL_CONTAINER`（既定 `parking-sql`）／`SQL_DB`（既定 `parking`）／`SA_PASSWORD`。
+環境変数で上書き可: `SQL_CONTAINER`（既定 `parking-sql`）／`SQL_DB`（既定 `parking`・英数字とアンダースコアのみ）／`SA_PASSWORD`。
 
 ## 新しいマイグレーションの追加
 

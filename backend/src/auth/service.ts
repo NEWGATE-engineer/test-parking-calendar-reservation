@@ -97,6 +97,7 @@ export class AuthService {
    * @returns 発行したトークン（呼び出し側が 200 で返す）
    * @throws {AppError} 401 `invalid_credentials` — メール不存在 or パスワード不一致（列挙を避け同一応答）
    * @throws {AppError} 429 `account_locked` — 連続失敗でロック中の場合
+   * @throws {AppError} 403 `account_disabled` — 退会等で `status` が `active` でない場合
    */
   async login(input: LoginInput): Promise<TokenResponse> {
     const user = await this.repo.findUserByEmail(input.email);
@@ -120,7 +121,14 @@ export class AuthService {
       throw new AppError(401, 'invalid_credentials', 'メールアドレスまたはパスワードが違います');
     }
 
-    // ④b 成功。失敗カウント・ロックを解除してトークン発行
+    // ④b アカウント状態の確認（退会等の無効アカウントはトークンを発行しない）。
+    // パスワード照合に成功した後に判定することで、誤パスワード試行に対しては
+    // 「アカウントが無効」という情報を返さず列挙を防ぐ（OWASP A07）。
+    if (user.status !== 'active') {
+      throw new AppError(403, 'account_disabled', 'このアカウントは利用できません');
+    }
+
+    // ④c 成功。失敗カウント・ロックを解除してトークン発行
     await this.repo.resetLoginFailures(user.id);
     return this.issueTokens(user.id);
   }

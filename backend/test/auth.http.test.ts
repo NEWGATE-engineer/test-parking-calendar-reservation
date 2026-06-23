@@ -4,7 +4,19 @@ import request from 'supertest';
 import { createAuthRouter } from '../src/auth/router.js';
 import { errorHandler } from '../src/http/errorHandler.js';
 import { makeMockRepo } from './helpers/mockRepo.js';
-import type { AuthRepository } from '../src/auth/repository.js';
+import { hashPassword } from '../src/auth/passwords.js';
+import type { AuthRepository, UserRow } from '../src/auth/repository.js';
+
+async function seededUser(password = '12345678'): Promise<UserRow> {
+  return {
+    id: 'user-1',
+    email: 'a@b.com',
+    password_hash: await hashPassword(password),
+    status: 'active',
+    failed_attempts: 0,
+    lock_until: null,
+  };
+}
 
 function buildTestApp(repo: AuthRepository = makeMockRepo()): express.Express {
   const app = express();
@@ -44,6 +56,17 @@ describe('POST /auth/register', () => {
 });
 
 describe('POST /auth/login', () => {
+  it('正しい資格情報は 200 で TokenResponse を返す', async () => {
+    const repo = makeMockRepo([await seededUser()]);
+    const res = await request(buildTestApp(repo))
+      .post('/auth/login')
+      .send({ email: 'a@b.com', password: '12345678' });
+    expect(res.status).toBe(200);
+    expect(res.body.token_type).toBe('Bearer');
+    expect(res.body.access_token).toBeTruthy();
+    expect(res.body.refresh_token).toBeTruthy();
+  });
+
   it('誤った資格情報は 401', async () => {
     const res = await request(buildTestApp())
       .post('/auth/login')

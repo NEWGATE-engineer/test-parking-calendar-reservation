@@ -23,7 +23,10 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   // 想定外の例外は name/message のみログする。err オブジェクト全体は出さない
   // （mssql 等が接続文字列をエラーに含む場合、ログ基盤へパスワードが漏れるのを防ぐ）。
   const name = err instanceof Error ? err.name : typeof err;
-  const message = err instanceof Error ? err.message : String(err);
+  const rawMessage = err instanceof Error ? err.message : String(err);
+  // mssql 由来のエラー（ConnectionError/RequestError）はメッセージに接続情報を含み得るため伏せる。
+  const dbError = name === 'ConnectionError' || name === 'RequestError';
+  const message = dbError ? '[db error - message redacted]' : rawMessage;
   console.error(`unhandled error: ${name}: ${message}`);
   const body: ErrorBody = { code: 'internal_error', message: '内部エラーが発生しました', retryable: false };
   res.status(500).json(body);

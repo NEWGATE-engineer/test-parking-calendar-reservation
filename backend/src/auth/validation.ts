@@ -76,6 +76,9 @@ export function parseLogin(body: unknown): LoginInput {
   const b = body as Record<string, unknown>;
   const email = asString(b['email']);
   const password = asString(b['password']);
+  // ログインでは register と違いメール「形式」までは検査しない（意図的に緩い）。
+  // 形式不正なメールはどの会員にも一致せず 401 になるだけで、ここで 422 にして
+  // 形式ルールを攻撃者に伝える必要がない。存在チェック（空でない）のみ行う。
   if (email === undefined || email === '') throw validationError('メールアドレスが必要です');
   if (password === undefined || password === '') throw validationError('パスワードが必要です');
   return { email, password };

@@ -156,8 +156,13 @@ export class SqlAuthRepository implements AuthRepository {
       await tx.commit();
       return userId;
     } catch (err) {
-      // 失敗時はロールバックして部分作成を残さない
-      await tx.rollback();
+      // 失敗時はロールバックして部分作成を残さない。
+      // rollback 自体が失敗しても元の err を握り潰さないよう、ログのみに留める。
+      try {
+        await tx.rollback();
+      } catch (rollbackErr) {
+        console.error('トランザクションの rollback に失敗:', rollbackErr);
+      }
       // メール一意性は事前 SELECT ではなく DB の UNIQUE 制約に委ねる（TOCTOU 回避）。
       // 違反を 409 用のドメインエラーへ変換する
       if (isUniqueViolation(err)) throw new DuplicateEmailError();
@@ -168,7 +173,8 @@ export class SqlAuthRepository implements AuthRepository {
   /** @inheritDoc */
   async recordLoginFailure(userId: string, maxFailedAttempts: number, lockMinutes: number): Promise<void> {
     const pool = await getPool();
-    // 失敗数+1 と「閾値到達ならロック時刻設定」を1文で原子的に行う（読み取り→書き込みの競合を避ける）
+    // 失敗数+1 と「閾値到達ならロック時刻設定」を1文で原子的に行う（読み取り→書き込みの競合を避ける）。
+    // 無効アカウント（status<>'active'）はカウントしない（CLAUDE.md: 現在状態を WHERE に含める）。
     await pool
       .request()
       .input('id', mssql.UniqueIdentifier, userId)
@@ -180,17 +186,22 @@ export class SqlAuthRepository implements AuthRepository {
              lock_until = CASE WHEN failed_attempts + 1 >= @max
                                THEN DATEADD(MINUTE, @lockMin, SYSUTCDATETIME())
                                ELSE lock_until END
-         WHERE id = @id`,
+         WHERE id = @id AND status = 'active'`,
       );
   }
 
   /** @inheritDoc */
   async resetLoginFailures(userId: string): Promise<void> {
     const pool = await getPool();
+    // 既にクリーン（失敗0かつ未ロック）なら書き込まない。成功ログインのたびの無駄な
+    // UPDATE を避け、serverless の書き込み往復を減らす。
     await pool
       .request()
       .input('id', mssql.UniqueIdentifier, userId)
-      .query(`UPDATE [User] SET failed_attempts = 0, lock_until = NULL WHERE id = @id`);
+      .query(
+        `UPDATE [User] SET failed_attempts = 0, lock_until = NULL
+         WHERE id = @id AND (failed_attempts > 0 OR lock_until IS NOT NULL)`,
+      );
   }
 
   /** @inheritDoc */

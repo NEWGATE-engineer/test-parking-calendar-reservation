@@ -14,6 +14,11 @@ describe('access token', () => {
     const token = jwt.sign({}, secret, { algorithm: 'HS256', expiresIn: 60 });
     expect(() => verifyAccessToken(token)).toThrow();
   });
+
+  it('期限切れトークンは検証で弾く', () => {
+    const token = jwt.sign({}, secret, { algorithm: 'HS256', subject: 'user-1', expiresIn: -10 });
+    expect(() => verifyAccessToken(token)).toThrow();
+  });
 });
 
 describe('refresh token', () => {

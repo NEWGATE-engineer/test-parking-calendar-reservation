@@ -6,6 +6,11 @@ import bcrypt from 'bcryptjs';
  * パスワードは必ず bcrypt でハッシュして保存し、平文・可逆暗号は使わない。
  * ネイティブビルドが要らない `bcryptjs`（bcrypt 互換ハッシュ）を採用している。
  *
+ * トレードオフ（MVP として許容）: `bcryptjs` は純 JS のためハッシュ計算が libuv の
+ * スレッドプールに逃げず、コスト12で 1 回あたり数百 ms メインスレッドを占有する。
+ * 高同時実行ではレイテンシに影響するため、本番でスケールが要るときは native `bcrypt`
+ * へ差し替えるか worker_threads にオフロードする（API は同じなので後から切替可能）。
+ *
  * @module auth/passwords
  */
 
@@ -41,6 +46,7 @@ export function verifyPassword(plain: string, hash: string): Promise<boolean> {
  *
  * これを比較に通すことで「メールが存在する場合だけ遅い」という応答時間差を無くし、
  * メールアドレスの存在をタイミングから推測される攻撃（ユーザー列挙）を抑止する。
- * 形式上は正しい bcrypt ハッシュだが、実在パスワードには一致しない。
+ * 形式上は正しい bcrypt ハッシュ（コスト 12 = 上記 COST と同水準）だが、実在パスワードには
+ * 一致しない。COST を変えたらこの値のコスト部（`$2a$12$`）も合わせると時間差がより正確にそろう。
  */
 export const DUMMY_HASH = '$2a$12$C6UzMDM.H6dfI/f/IKcEeO0000000000000000000000000000000000';

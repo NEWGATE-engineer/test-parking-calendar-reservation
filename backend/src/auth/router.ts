@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthService } from './service.js';
 import { SqlAuthRepository, type AuthRepository } from './repository.js';
 import { parseRegister, parseLogin } from './validation.js';
+import { asyncHandler } from '../http/asyncHandler.js';
 
 /**
  * `/auth` ルーター。会員登録・ログインの HTTP 入口（refresh / logout は 2c で追加）。
@@ -29,24 +30,25 @@ export function createAuthRouter(repo: AuthRepository = new SqlAuthRepository())
    * POST /auth/register — 会員登録。成功時 201 で TokenResponse。
    * 検証失敗は 422、メール重複は 409（いずれも errorHandler が整形）。
    */
-  router.post('/register', (req, res, next) => {
-    // async 処理の例外は .catch(next) で確実にエラーハンドラへ流す（Express 5 でも明示するのが安全）
-    void (async () => {
+  router.post(
+    '/register',
+    asyncHandler(async (req, res) => {
       const tokens = await service.register(parseRegister(req.body));
       res.status(201).json(tokens);
-    })().catch(next);
-  });
+    }),
+  );
 
   /**
    * POST /auth/login — ログイン。成功時 200 で TokenResponse。
-   * 検証失敗は 422、資格情報不一致は 401、ロック中は 429。
+   * 検証失敗は 422、資格情報不一致は 401、ロック中は 429、無効アカウントは 403。
    */
-  router.post('/login', (req, res, next) => {
-    void (async () => {
+  router.post(
+    '/login',
+    asyncHandler(async (req, res) => {
       const tokens = await service.login(parseLogin(req.body));
       res.status(200).json(tokens);
-    })().catch(next);
-  });
+    }),
+  );
 
   return router;
 }

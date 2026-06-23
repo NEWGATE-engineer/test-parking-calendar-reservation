@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { AuthService } from '../src/auth/service.js';
 import { hashPassword } from '../src/auth/passwords.js';
+import { verifyAccessToken } from '../src/auth/tokens.js';
 import { makeMockRepo } from './helpers/mockRepo.js';
 import type { UserRow } from '../src/auth/repository.js';
 
@@ -72,5 +73,37 @@ describe('AuthService.login', () => {
     await expect(
       new AuthService(repo).login({ email: 'a@b.com', password: '12345678' }),
     ).rejects.toMatchObject({ httpStatus: 429, code: 'account_locked' });
+  });
+
+  it('ロック期限切れ（過去日時）なら正常ログインできる', async () => {
+    const user = await seededUser();
+    user.lock_until = new Date(Date.now() - 60_000); // 既に解除済み
+    const repo = makeMockRepo([user]);
+    const res = await new AuthService(repo).login({ email: 'a@b.com', password: '12345678' });
+    expect(res.access_token).toBeTruthy();
+    expect(repo.resetLoginFailures).toHaveBeenCalledWith('user-1');
+  });
+
+  it('status が active 以外は 403 account_disabled（パスワードは正しくても）', async () => {
+    const user = await seededUser();
+    user.status = 'withdrawn';
+    const repo = makeMockRepo([user]);
+    await expect(
+      new AuthService(repo).login({ email: 'a@b.com', password: '12345678' }),
+    ).rejects.toMatchObject({ httpStatus: 403, code: 'account_disabled' });
+  });
+});
+
+describe('AuthService register → login 一連フロー', () => {
+  it('登録したユーザーでログインでき、access の sub が一致、refresh は2回保存される', async () => {
+    const repo = makeMockRepo();
+    const svc = new AuthService(repo);
+    const reg = await svc.register({ email: 'a@b.com', password: '12345678', name: null, termsVersion: 'x' });
+    const login = await svc.login({ email: 'a@b.com', password: '12345678' });
+
+    const regUserId = verifyAccessToken(reg.access_token).sub;
+    const loginUserId = verifyAccessToken(login.access_token).sub;
+    expect(loginUserId).toBe(regUserId); // 同一ユーザー
+    expect(repo.refreshInserts).toBe(2); // register + login で各1回
   });
 });

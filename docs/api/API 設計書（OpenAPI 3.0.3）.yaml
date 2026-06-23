@@ -363,7 +363,9 @@ components:
           type: string
           description: >
             機械可読の理由コード。例：physical_occupancy / device_unhealthy /
-            conflict_overlap / conflict_buffer / timeout / validation_error
+            conflict_overlap / conflict_buffer / timeout / validation_error /
+            unauthorized / email_conflict / invalid_credentials / account_locked /
+            account_disabled / internal_error
           example: physical_occupancy
         message: { type: string, example: 区画が使用中です }
         retryable:

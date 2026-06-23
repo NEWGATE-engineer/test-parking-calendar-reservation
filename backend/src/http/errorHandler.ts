@@ -10,8 +10,11 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(err.httpStatus).json(err.toBody());
     return;
   }
-  // 想定外の例外はログのみ（機密が混じり得るためレスポンスには出さない）
-  console.error('unhandled error:', err);
+  // 想定外の例外はログのみ。err オブジェクト全体は出さない（mssql 等が接続文字列を
+  // メッセージに含む場合にログ基盤へ漏れるのを防ぐ）。name と message に限定する。
+  const name = err instanceof Error ? err.name : typeof err;
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`unhandled error: ${name}: ${message}`);
   const body: ErrorBody = { code: 'internal_error', message: '内部エラーが発生しました', retryable: false };
   res.status(500).json(body);
 };

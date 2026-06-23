@@ -32,4 +32,9 @@ export const config = {
     accessTtlSec: num('JWT_ACCESS_TTL_SEC', 15 * 60), // 仮: 15分
     refreshTtlSec: num('JWT_REFRESH_TTL_SEC', 14 * 24 * 60 * 60), // 仮: 14日
   },
+  // ログインのレート制限・アカウントロック（F1-5）。値は仮（要件 §12）。
+  login: {
+    maxFailedAttempts: num('LOGIN_MAX_FAILED', 5), // 仮: 5回
+    lockMinutes: num('LOGIN_LOCK_MINUTES', 15), // 仮: 15分
+  },
 } as const;

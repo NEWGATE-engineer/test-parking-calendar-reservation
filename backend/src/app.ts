@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import { errorHandler } from './http/errorHandler.js';
+import { createAuthRouter } from './auth/router.js';
 
 /**
  * Express アプリを組み立てる（テストからも利用するため listen はしない）。
@@ -14,7 +15,8 @@ export function buildApp(): Express {
     res.json({ status: 'ok' });
   });
 
-  // 業務ルートのマウント位置（2b 以降: app.use('/auth', authRouter) など）
+  // 認証ルート（register / login。refresh / logout は 2c）
+  app.use('/auth', createAuthRouter());
 
   // エラーハンドラは必ず最後
   app.use(errorHandler);

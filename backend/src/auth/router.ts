@@ -7,7 +7,7 @@ import { asyncHandler } from '../http/asyncHandler.js';
 import { requireAuth, getUserId } from '../http/requireAuth.js';
 
 /**
- * `/auth` ルーター。会員登録・ログインの HTTP 入口（refresh / logout は 2c で追加）。
+ * `/auth` ルーター。会員登録・ログイン・トークン更新・ログアウトの HTTP 入口。
  *
  * 各ハンドラは「入力検証 → サービス呼び出し → 応答」だけを行い、
  * 失敗はすべて `next(err)` で統一エラーハンドラ（errorHandler）に委譲する。

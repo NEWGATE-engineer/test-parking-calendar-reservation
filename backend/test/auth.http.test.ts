@@ -131,4 +131,17 @@ describe('POST /auth/logout', () => {
       .send({ refresh_token: reg.body.refresh_token });
     expect(res.status).toBe(204);
   });
+
+  it('認証ありでも refresh_token 欠落は 422', async () => {
+    const app = buildTestApp();
+    const reg = await request(app)
+      .post('/auth/register')
+      .send({ email: 'a@b.com', password: '12345678', terms_version: 'x' });
+    const res = await request(app)
+      .post('/auth/logout')
+      .set('authorization', `Bearer ${reg.body.access_token}`)
+      .send({}); // refresh_token なし
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('validation_error');
+  });
 });

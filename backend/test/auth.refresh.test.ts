@@ -75,6 +75,20 @@ describe('AuthService.refresh', () => {
       code: 'invalid_token',
     });
   });
+
+  it('期限切れは再使用ではないので revokeFamily を呼ばない', async () => {
+    const repo = makeMockRepo();
+    const raw = 'expired-raw-token-2';
+    await repo.insertRefreshToken({
+      userId: 'user-1',
+      familyId: 'fam-1',
+      tokenHash: sha256(raw),
+      expiresAt: new Date(Date.now() - 1000),
+    });
+    await expect(new AuthService(repo).refresh(raw)).rejects.toMatchObject({ code: 'invalid_token' });
+    // 失効済み再使用(②)・並行競合(④)とは違い、期限切れ(③)は系統失効しない
+    expect(repo.revokeFamily).not.toHaveBeenCalled();
+  });
 });
 
 describe('AuthService.logout', () => {
@@ -86,7 +100,18 @@ describe('AuthService.logout', () => {
 
     // logout で失効済みになったため、その後の refresh は再使用扱い
     await expect(svc.refresh(reg.refresh_token)).rejects.toMatchObject({ httpStatus: 401, code: 'token_reused' });
-    void repo;
+    // 当該トークンが実際に失効済みになっていることも確認
+    const stored = repo.refreshTokens.find((t) => t.token_hash.equals(sha256(reg.refresh_token)));
+    expect(stored?.revoked_at).not.toBeNull();
+  });
+
+  it('他ユーザーの refresh_token を指定しても失効しない（越権防止）', async () => {
+    const { repo, svc, reg } = await registered();
+    const ownerToken = reg.refresh_token;
+    // 別人の userId で logout を試みる
+    await svc.logout('different-user-id', ownerToken);
+    const stored = repo.refreshTokens.find((t) => t.token_hash.equals(sha256(ownerToken)));
+    expect(stored?.revoked_at).toBeNull(); // 所有者のトークンは失効していない
   });
 
   it('冪等: 2回 logout を呼んでも例外にならない', async () => {

@@ -67,8 +67,13 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: アカウント無効（退会済み等。Error.code=account_disabled）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '429':
-          description: レート制限・アカウントロック
+          description: レート制限・アカウントロック（Error.code=account_locked）
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -363,7 +368,9 @@ components:
           type: string
           description: >
             機械可読の理由コード。例：physical_occupancy / device_unhealthy /
-            conflict_overlap / conflict_buffer / timeout / validation_error
+            conflict_overlap / conflict_buffer / timeout / validation_error /
+            unauthorized / email_conflict / invalid_credentials / account_locked /
+            account_disabled / internal_error
           example: physical_occupancy
         message: { type: string, example: 区画が使用中です }
         retryable:

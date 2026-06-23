@@ -52,6 +52,13 @@ flutter run -d web-server --web-port 5000 --dart-define=API_BASE_URL=http://loca
 - **予約の変更・キャンセルは `reserved` のみ可**（条件付き UPDATE で 0 件なら 409）。
 - 認証は**自前 JWT**方針（access 15分 / refresh 14日、refresh は SHA-256 ソルト無で保存、`family_id` で系統失効）。MVP は access の denylist を持たない。詳細は [docs/architecture/](docs/architecture/) の認証設計。
 
+## コーディング規約（コメント）
+
+- 実装コードには**初学者にも分かる詳しいコメント**を書く。
+- 公開する関数・メソッド・クラス・型・モジュールに **TSDoc（日本語可）** を付け、`@param` / `@returns` / `@throws` を明記する。HTTP ハンドラ・サービス層は「どのエラー（HTTP status / code）を投げるか」を `@throws` に書く。
+- **主要な処理ステップ**には「何を・なぜ」の行コメントを添える（設計意図：条件付き UPDATE・TOCTOU 回避・列挙対策・冪等 など）。ただし自明な行には書かずノイズにしない。
+- 変数名・DB カラム名は英語、コメントは日本語で可。
+
 ## やってはいけないこと
 
 - `.env` / `functions/local.settings.json` をコミットしない（`.gitignore` 済み・接続文字列やシークレットを含む）。

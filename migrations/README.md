@@ -46,4 +46,5 @@ CI でも PR が `migrations/**` を変更すると [.github/workflows/db-test.y
 - `sqlcmd` の既定は `QUOTED_IDENTIFIER OFF` のため、PERSISTED 計算列（`Fee.total`）とフィルタ付きインデックスの作成には `-I` が必要（apply.sh で付与済み）。
 - パスワードは `SQLCMDPASSWORD` 環境変数で渡し、コマンドライン（argv）には載せない（`ps` への露出防止）。
 - 本番（Azure SQL）への適用は、同じ `.sql` を Azure 接続の実行系（CI／ポータル／別ランナー）で流す。接続先の差し替えのみで連番管理の考え方は共通。
-- **既知の限界（MVP）**: 各マイグレーションの「DDL 適用」と「版記録」はトランザクションで一体化していない。適用途中に強制中断（SIGINT 等）すると部分適用が残り、再実行で `CREATE TABLE` 重複エラーになりうる。その場合は対象 DB を作り直す（dev）。完全な原子適用は将来の課題（専用ツール導入時に解消）。
+- **原子適用**: 各マイグレーションの「DDL 適用」と「版記録」は `SET XACT_ABORT ON` + `BEGIN/COMMIT TRANSACTION` の単一トランザクションで実行する。適用途中に中断されても SQL Server がロールバックするため、部分適用や「適用済みだが版未記録」の不整合は発生しない。
+- **単一バッチ制約**: 各マイグレーションの `.sql` は単一バッチとして実行される（`GO` は apply.sh が除去）。`CREATE PROCEDURE` / `CREATE VIEW` / `CREATE FUNCTION` / `CREATE TRIGGER` は「バッチの先頭文でなければならない」T-SQL 制約があるため、これらを含めるマイグレーションは `GO` で分割せず**単独ファイル**に分けること。

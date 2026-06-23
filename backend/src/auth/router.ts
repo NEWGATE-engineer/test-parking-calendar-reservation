@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { AuthService } from './service.js';
 import { SqlAuthRepository, type AuthRepository } from './repository.js';
-import { parseRegister, parseLogin } from './validation.js';
+import { parseRegister, parseLogin, parseRefreshToken } from './validation.js';
 import { asyncHandler } from '../http/asyncHandler.js';
+import { requireAuth } from '../http/requireAuth.js';
+import { unauthorized } from '../http/errors.js';
 
 /**
  * `/auth` ルーター。会員登録・ログインの HTTP 入口（refresh / logout は 2c で追加）。
@@ -47,6 +49,35 @@ export function createAuthRouter(repo: AuthRepository = new SqlAuthRepository())
     asyncHandler(async (req, res) => {
       const tokens = await service.login(parseLogin(req.body));
       res.status(200).json(tokens);
+    }),
+  );
+
+  /**
+   * POST /auth/refresh — リフレッシュトークンのローテーション。成功時 200 で新 TokenResponse。
+   * 不明・期限切れ・再使用は 401（認証不要のエンドポイント）。
+   */
+  router.post(
+    '/refresh',
+    asyncHandler(async (req, res) => {
+      const { refreshToken } = parseRefreshToken(req.body);
+      const tokens = await service.refresh(refreshToken);
+      res.status(200).json(tokens);
+    }),
+  );
+
+  /**
+   * POST /auth/logout — リフレッシュトークンを失効。成功時 204。
+   * Bearer アクセストークンで本人認証する（requireAuth）。本文に refresh_token が必要。
+   */
+  router.post(
+    '/logout',
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const { refreshToken } = parseRefreshToken(req.body);
+      // requireAuth 通過後は userId が必ず入るが、型上は optional なので保険でチェック
+      if (req.userId === undefined) throw unauthorized();
+      await service.logout(req.userId, refreshToken);
+      res.status(204).end();
     }),
   );
 

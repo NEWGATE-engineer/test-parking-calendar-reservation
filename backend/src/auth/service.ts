@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { AppError } from '../http/errors.js';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './passwords.js';
-import { signAccessToken, generateRefreshToken } from './tokens.js';
+import { signAccessToken, generateRefreshToken, sha256 } from './tokens.js';
 import { type AuthRepository, DuplicateEmailError, type CreateUserInput } from './repository.js';
 import type { RegisterInput, LoginInput } from './validation.js';
 
@@ -32,20 +32,22 @@ export class AuthService {
   constructor(private readonly repo: AuthRepository) {}
 
   /**
-   * アクセス＋リフレッシュのトークンペアを発行し、リフレッシュを新しい family で保存する。
+   * アクセス＋リフレッシュのトークンペアを発行し、リフレッシュトークンを保存する。
    *
    * リフレッシュは平文をクライアントに返し、サーバには SHA-256 のみ保存する。
+   * `familyId` を渡すとその系統で発行（＝ローテーション）、省略すると新規系統を起点にする。
    *
    * @param userId トークンを発行する対象ユーザー
+   * @param familyId 系統 ID（省略時は新規採番＝ログイン/登録の起点）
    * @returns クライアントへ返す {@link TokenResponse}
    */
-  private async issueTokens(userId: string): Promise<TokenResponse> {
+  private async issueTokens(userId: string, familyId: string = randomUUID()): Promise<TokenResponse> {
     const refresh = generateRefreshToken();
     const expiresAt = new Date(Date.now() + config.jwt.refreshTtlSec * 1000);
-    // 保存するのはハッシュのみ。family_id は新規採番（この系統の起点）
+    // 保存するのはハッシュのみ。family_id はログイン/登録で新規、refresh では引き継ぐ
     await this.repo.insertRefreshToken({
       userId,
-      familyId: randomUUID(),
+      familyId,
       tokenHash: refresh.hash,
       expiresAt,
     });
@@ -131,5 +133,61 @@ export class AuthService {
     // ④c 成功。失敗カウント・ロックを解除してトークン発行
     await this.repo.resetLoginFailures(user.id);
     return this.issueTokens(user.id);
+  }
+
+  /**
+   * トークン再発行（`POST /auth/refresh` 相当）＝リフレッシュトークンのローテーション。
+   *
+   * 手順（認証設計§3）: ①ハッシュで照合 → ②失効済みの再使用なら系統一括失効 →
+   * ③期限切れは拒否 → ④`revoked_at IS NULL` の条件付き UPDATE で旧トークンを失効、
+   * 1件成功した側だけ同じ family で新ペアを発行。0件なら再使用とみなし系統失効。
+   *
+   * @param rawToken クライアントが提示したリフレッシュトークン平文
+   * @returns 新しい {@link TokenResponse}（access + 新 refresh）
+   * @throws {AppError} 401 `invalid_token` — 不明・期限切れ
+   * @throws {AppError} 401 `token_reused` — 失効済みトークンの再使用（系統を一括失効）
+   */
+  async refresh(rawToken: string): Promise<TokenResponse> {
+    const tokenHash = sha256(rawToken);
+    const row = await this.repo.findRefreshTokenByHash(tokenHash);
+
+    // ① 不明なトークン（存在しない）。失効すべき family も分からないので単に拒否
+    if (row === null) {
+      throw new AppError(401, 'invalid_token', 'リフレッシュトークンが無効です');
+    }
+
+    // ② 既に失効済みトークンの再使用 = 盗難・複製の兆候。系統(family)を全失効して締め出す
+    if (row.revoked_at !== null) {
+      await this.repo.revokeFamily(row.family_id);
+      throw new AppError(401, 'token_reused', 'リフレッシュトークンが再使用されました。再ログインしてください');
+    }
+
+    // ③ 期限切れ
+    if (row.expires_at.getTime() <= Date.now()) {
+      throw new AppError(401, 'invalid_token', 'リフレッシュトークンの有効期限が切れています');
+    }
+
+    // ④ ローテーション: 旧トークンを条件付きで失効。勝者（1件失効できた側）だけ新ペアを発行
+    const won = await this.repo.revokeRefreshTokenById(row.id);
+    if (!won) {
+      // 読み取りから更新までの間に他者が失効済み = 並行した再使用。系統を全失効
+      await this.repo.revokeFamily(row.family_id);
+      throw new AppError(401, 'token_reused', 'リフレッシュトークンが再使用されました。再ログインしてください');
+    }
+    return this.issueTokens(row.user_id, row.family_id);
+  }
+
+  /**
+   * ログアウト（`POST /auth/logout` 相当）。
+   *
+   * 本人のリフレッシュトークンを失効する。アクセストークンは短命なためクライアントが破棄する
+   * 前提で、MVP では access の denylist は持たない（認証設計§4）。
+   * 既に失効済み・存在しない場合も成功扱い（冪等）。
+   *
+   * @param userId 認証済みユーザー（requireAuth が設定した sub）
+   * @param rawToken 失効するリフレッシュトークン平文
+   */
+  async logout(userId: string, rawToken: string): Promise<void> {
+    await this.repo.revokeRefreshTokenByHashForUser(userId, sha256(rawToken));
   }
 }

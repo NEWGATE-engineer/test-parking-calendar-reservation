@@ -30,6 +30,11 @@ export interface LoginInput {
   password: string;
 }
 
+/** refresh / logout が必要とする本文（`refresh_token`）。 */
+export interface RefreshTokenBody {
+  refreshToken: string;
+}
+
 /**
  * `unknown` を安全に文字列として取り出す。文字列でなければ `undefined`。
  *
@@ -82,4 +87,18 @@ export function parseLogin(body: unknown): LoginInput {
   if (email === undefined || email === '') throw validationError('メールアドレスが必要です');
   if (password === undefined || password === '') throw validationError('パスワードが必要です');
   return { email, password };
+}
+
+/**
+ * refresh / logout リクエスト本文を検証する（`refresh_token` 必須）。
+ *
+ * @param body `req.body`（型は `unknown`）
+ * @returns 検証済みの `{ refreshToken }`
+ * @throws {AppError} 422 `validation_error` — 本文が非オブジェクト、または `refresh_token` 欠落
+ */
+export function parseRefreshToken(body: unknown): RefreshTokenBody {
+  if (typeof body !== 'object' || body === null) throw validationError('リクエスト本文が不正です');
+  const refreshToken = asString((body as Record<string, unknown>)['refresh_token']);
+  if (refreshToken === undefined || refreshToken === '') throw validationError('refresh_token が必要です');
+  return { refreshToken };
 }

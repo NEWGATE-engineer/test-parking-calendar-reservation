@@ -1,10 +1,10 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { AuthService } from './service.js';
 import { SqlAuthRepository, type AuthRepository } from './repository.js';
 import { parseRegister, parseLogin, parseRefreshToken } from './validation.js';
 import { asyncHandler } from '../http/asyncHandler.js';
-import { requireAuth } from '../http/requireAuth.js';
-import { unauthorized } from '../http/errors.js';
+import { requireAuth, getUserId } from '../http/requireAuth.js';
 
 /**
  * `/auth` ルーター。会員登録・ログインの HTTP 入口（refresh / logout は 2c で追加）。
@@ -22,11 +22,24 @@ import { unauthorized } from '../http/errors.js';
  * （既定は実 DB を使う {@link SqlAuthRepository}）。
  *
  * @param repo 認証データアクセス層（既定: SqlAuthRepository）
- * @returns `/register`・`/login` を備えた Express Router
+ * @returns `/register`・`/login`・`/refresh`・`/logout` を備えた Express Router
  */
 export function createAuthRouter(repo: AuthRepository = new SqlAuthRepository()): Router {
   const service = new AuthService(repo);
   const router = Router();
+
+  // 認証エンドポイントの IP レート制限（DoS・総当たり対策）。
+  // login のアカウントロック(F1-5)とは別レイヤ。refresh は認証不要の公開口かつ
+  // 失効済みトークン再送で revokeFamily の書き込みが走るため、ここで上限をかける。
+  // ※ Azure Front Door / API Management 等のエッジで制限する場合は二重になるので調整。
+  router.use(
+    rateLimit({
+      windowMs: 15 * 60 * 1000, // 15分
+      limit: 30, // IP あたり 30 リクエスト/窓（仮値・運用で調整）
+      standardHeaders: true,
+      legacyHeaders: false,
+    }),
+  );
 
   /**
    * POST /auth/register — 会員登録。成功時 201 で TokenResponse。
@@ -74,9 +87,8 @@ export function createAuthRouter(repo: AuthRepository = new SqlAuthRepository())
     requireAuth,
     asyncHandler(async (req, res) => {
       const { refreshToken } = parseRefreshToken(req.body);
-      // requireAuth 通過後は userId が必ず入るが、型上は optional なので保険でチェック
-      if (req.userId === undefined) throw unauthorized();
-      await service.logout(req.userId, refreshToken);
+      // requireAuth 通過後の userId 取り出し（未設定は配線ミス＝内部エラー扱い）
+      await service.logout(getUserId(req), refreshToken);
       res.status(204).end();
     }),
   );

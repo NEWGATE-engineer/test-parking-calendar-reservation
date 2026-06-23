@@ -99,6 +99,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /auth/logout:
     post:
@@ -117,6 +118,7 @@ paths:
       responses:
         '204': { description: 成功 }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /spots:
     get:

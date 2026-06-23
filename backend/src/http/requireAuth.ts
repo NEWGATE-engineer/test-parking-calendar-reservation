@@ -1,4 +1,4 @@
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
 import { verifyAccessToken } from '../auth/tokens.js';
 import { unauthorized } from './errors.js';
 
@@ -37,3 +37,21 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
     next(unauthorized('トークンが無効です'));
   }
 };
+
+/**
+ * `requireAuth` を通過した Request から認証済みユーザー ID を取り出す。
+ *
+ * `req.userId` は型上 optional だが、`requireAuth` 通過後は必ず設定されている。
+ * もし未設定なら**ミドルウェアの配線ミス（プログラミングエラー）**なので、認証失敗(401)
+ * ではなく内部エラー（→ errorHandler が 500）として扱う。各ハンドラの防御コードを集約する。
+ *
+ * @param req requireAuth 通過後のリクエスト
+ * @returns 認証済みユーザー ID（`sub`）
+ * @throws {Error} `requireAuth` を前段に置いていない等で `userId` 未設定の場合（内部エラー）
+ */
+export function getUserId(req: Request): string {
+  if (req.userId === undefined) {
+    throw new Error('requireAuth invariant violated: req.userId is not set');
+  }
+  return req.userId;
+}

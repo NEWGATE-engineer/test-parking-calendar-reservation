@@ -22,7 +22,21 @@ describe('AuthService.refresh', () => {
     expect(repo.refreshInserts).toBe(2); // register + rotation で2件
 
     const old = repo.refreshTokens.find((t) => t.token_hash.equals(sha256(oldRaw)));
+    const fresh = repo.refreshTokens.find((t) => t.token_hash.equals(sha256(res.refresh_token)));
     expect(old?.revoked_at).not.toBeNull(); // 旧トークンは失効済み
+    expect(fresh?.revoked_at).toBeNull(); // 新トークンは有効
+    expect(fresh?.family_id).toBe(old?.family_id); // family は維持される
+  });
+
+  it('並行競合（revokeRefreshTokenById が false）は 401 token_reused かつ family 全失効', async () => {
+    const { repo, svc, reg } = await registered();
+    // 読み取り後の条件付き UPDATE が 0 件＝他者が先に失効した状況を再現
+    repo.revokeRefreshTokenById.mockResolvedValueOnce(false);
+    await expect(svc.refresh(reg.refresh_token)).rejects.toMatchObject({
+      httpStatus: 401,
+      code: 'token_reused',
+    });
+    expect(repo.revokeFamily).toHaveBeenCalledTimes(1);
   });
 
   it('失効済みトークンの再使用は 401 token_reused かつ family 全失効', async () => {
@@ -73,5 +87,13 @@ describe('AuthService.logout', () => {
     // logout で失効済みになったため、その後の refresh は再使用扱い
     await expect(svc.refresh(reg.refresh_token)).rejects.toMatchObject({ httpStatus: 401, code: 'token_reused' });
     void repo;
+  });
+
+  it('冪等: 2回 logout を呼んでも例外にならない', async () => {
+    const { svc, reg } = await registered();
+    const userId = verifyAccessToken(reg.access_token).sub;
+    await svc.logout(userId, reg.refresh_token);
+    // 2回目（既に失効済み）も例外なく成功扱い
+    await expect(svc.logout(userId, reg.refresh_token)).resolves.toBeUndefined();
   });
 });

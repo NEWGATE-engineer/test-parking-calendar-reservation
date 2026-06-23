@@ -144,8 +144,9 @@ export class AuthService {
    *
    * @param rawToken クライアントが提示したリフレッシュトークン平文
    * @returns 新しい {@link TokenResponse}（access + 新 refresh）
-   * @throws {AppError} 401 `invalid_token` — 不明・期限切れ
-   * @throws {AppError} 401 `token_reused` — 失効済みトークンの再使用（系統を一括失効）
+   * @throws {AppError} 401 `invalid_token` — トークンが存在しない（不明）場合
+   * @throws {AppError} 401 `invalid_token` — トークンが期限切れの場合
+   * @throws {AppError} 401 `token_reused` — 失効済みトークンの再使用・並行使用（系統を一括失効）
    */
   async refresh(rawToken: string): Promise<TokenResponse> {
     const tokenHash = sha256(rawToken);
@@ -186,6 +187,8 @@ export class AuthService {
    *
    * @param userId 認証済みユーザー（requireAuth が設定した sub）
    * @param rawToken 失効するリフレッシュトークン平文
+   * @throws 業務例外は投げない（冪等。既に失効済み・不存在でも成功扱い）。
+   *   DB 障害などの想定外例外は捕捉せずそのまま伝播し、errorHandler が 500 にする。
    */
   async logout(userId: string, rawToken: string): Promise<void> {
     await this.repo.revokeRefreshTokenByHashForUser(userId, sha256(rawToken));

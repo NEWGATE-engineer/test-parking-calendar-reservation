@@ -98,6 +98,16 @@ describe('POST /auth/refresh', () => {
     expect(res.status).toBe(401);
   });
 
+  it('ローテーション後に旧トークンを再使用すると 401（HTTP 層）', async () => {
+    const app = buildTestApp();
+    const reg = await request(app)
+      .post('/auth/register')
+      .send({ email: 'a@b.com', password: '12345678', terms_version: 'x' });
+    await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
+    const reuse = await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
+    expect(reuse.status).toBe(401);
+  });
+
   it('refresh_token 欠落は 422', async () => {
     const res = await request(buildTestApp()).post('/auth/refresh').send({});
     expect(res.status).toBe(422);

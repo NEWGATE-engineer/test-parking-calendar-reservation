@@ -80,3 +80,70 @@ describe('POST /auth/login', () => {
     expect(res.status).toBe(422);
   });
 });
+
+describe('POST /auth/refresh', () => {
+  it('正しいリフレッシュトークンで 200・新トークン', async () => {
+    const app = buildTestApp(); // 同一 app（＝同一 repo）で登録→更新
+    const reg = await request(app)
+      .post('/auth/register')
+      .send({ email: 'a@b.com', password: '12345678', terms_version: 'x' });
+    const res = await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
+    expect(res.status).toBe(200);
+    expect(res.body.access_token).toBeTruthy();
+    expect(res.body.refresh_token).not.toBe(reg.body.refresh_token);
+  });
+
+  it('不明なトークンは 401 invalid_token', async () => {
+    const res = await request(buildTestApp()).post('/auth/refresh').send({ refresh_token: 'nope' });
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('invalid_token'); // 401 の中の意味も検証
+  });
+
+  it('ローテーション後に旧トークンを再使用すると 401 token_reused（HTTP 層）', async () => {
+    const app = buildTestApp();
+    const reg = await request(app)
+      .post('/auth/register')
+      .send({ email: 'a@b.com', password: '12345678', terms_version: 'x' });
+    await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
+    const reuse = await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
+    expect(reuse.status).toBe(401);
+    expect(reuse.body.code).toBe('token_reused'); // invalid_token と区別される
+  });
+
+  it('refresh_token 欠落は 422', async () => {
+    const res = await request(buildTestApp()).post('/auth/refresh').send({});
+    expect(res.status).toBe(422);
+  });
+});
+
+describe('POST /auth/logout', () => {
+  it('Bearer 無しは 401', async () => {
+    const res = await request(buildTestApp()).post('/auth/logout').send({ refresh_token: 'x' });
+    expect(res.status).toBe(401);
+  });
+
+  it('認証あり＋refresh_token で 204', async () => {
+    const app = buildTestApp();
+    const reg = await request(app)
+      .post('/auth/register')
+      .send({ email: 'a@b.com', password: '12345678', terms_version: 'x' });
+    const res = await request(app)
+      .post('/auth/logout')
+      .set('authorization', `Bearer ${reg.body.access_token}`)
+      .send({ refresh_token: reg.body.refresh_token });
+    expect(res.status).toBe(204);
+  });
+
+  it('認証ありでも refresh_token 欠落は 422', async () => {
+    const app = buildTestApp();
+    const reg = await request(app)
+      .post('/auth/register')
+      .send({ email: 'a@b.com', password: '12345678', terms_version: 'x' });
+    const res = await request(app)
+      .post('/auth/logout')
+      .set('authorization', `Bearer ${reg.body.access_token}`)
+      .send({}); // refresh_token なし
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('validation_error');
+  });
+});

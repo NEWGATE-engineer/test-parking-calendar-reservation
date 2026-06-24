@@ -34,6 +34,14 @@ describe('GET /spots', () => {
 });
 
 describe('GET /spots/availability', () => {
+  it('Bearer 無しは 401', async () => {
+    const repo = makeMockSpotsRepo([]);
+    const res = await request(buildApp(repo))
+      .get('/spots/availability')
+      .query({ start: '2026-06-24T10:00:00Z', end: '2026-06-24T11:00:00Z' });
+    expect(res.status).toBe(401);
+  });
+
   it('認証ありで 200', async () => {
     const repo = makeMockSpotsRepo([{ id: '1', name: 'A', occupancy: 'vacant', last_seen_at: new Date() }]);
     const res = await request(buildApp(repo))

@@ -15,8 +15,8 @@ import { availabilityForSpot, isDeviceHealthy, type AvailabilityReason } from '.
 export interface SpotView {
   id: string;
   name: string;
-  /** occupied / vacant / unknown（デバイス不健全時は unknown）。 */
-  occupancy: string;
+  /** occupied / vacant / unknown（デバイス不健全時は unknown）。OpenAPI Occupancy enum と一致。 */
+  occupancy: 'occupied' | 'vacant' | 'unknown';
   device_healthy: boolean;
 }
 
@@ -38,6 +38,7 @@ export class SpotsService {
    * これにより「壊れたデバイスの古い満空」をそのまま見せない。
    *
    * @returns 区画ビューの配列
+   * @throws 業務例外は投げない。DB 例外はそのまま上位（asyncHandler→errorHandler で 500）へ伝播する。
    */
   async listSpots(): Promise<SpotView[]> {
     const now = new Date();
@@ -62,6 +63,7 @@ export class SpotsService {
    * @param start 希望開始（UTC）
    * @param end 希望終了（UTC）
    * @returns 区画ごとの可否
+   * @throws 業務例外は投げない。DB 例外はそのまま上位（asyncHandler→errorHandler で 500）へ伝播する。
    */
   async getAvailability(start: Date, end: Date): Promise<SpotAvailabilityView[]> {
     const now = new Date();
@@ -74,9 +76,10 @@ export class SpotsService {
     // 区画ごとに競合をまとめておく（区画数 × 予約数の総当たりを避ける）
     const bySpot = new Map<string, ReservationWindow[]>();
     for (const c of conflicts) {
-      const list = bySpot.get(c.spot_id) ?? [];
-      list.push(c);
-      bySpot.set(c.spot_id, list);
+      const list = bySpot.get(c.spot_id);
+      // 初回だけ set（以降は同じ配列参照に push するので set 不要）
+      if (list === undefined) bySpot.set(c.spot_id, [c]);
+      else list.push(c);
     }
 
     return spots.map((s) => {

@@ -11,8 +11,8 @@ import { getPool } from '../db.js';
 export interface SpotWithDevice {
   id: string;
   name: string;
-  /** ParkingSpot.occupancy（occupied / vacant）。表示時にデバイス不健全なら unknown に上書き。 */
-  occupancy: string;
+  /** ParkingSpot.occupancy。DB の CHECK 制約 IN ('occupied','vacant') に対応（unknown は持たない）。 */
+  occupancy: 'occupied' | 'vacant';
   /** Device.last_seen_at。デバイス未割当やテレメトリ未受信なら null。 */
   last_seen_at: Date | null;
 }

@@ -64,8 +64,11 @@ export function availabilityForSpot(params: {
     const ce = c.end.getTime();
     // 素の重なり（バッファ無し）: 既存の予約と時間が被っている → reserved
     if (cs < we && ws < ce) return { available: false, reason: 'reserved' };
-    // 重なってはいないが、バッファ B 未満に近接している → buffer
-    if (cs < we + bufMs && ws < ce + bufMs) nearBuffer = true;
+    // バッファ近接: 既存予約を前後に B 分ずつ広げた区間 [cs-B, ce+B] が希望窓 [ws, we] と
+    // 重なるか、で判定する（重なり自体は上で除外済みなので「近接」だけが残る）。
+    //   前方向: 既存が希望 start の B 分以内に終わる（ws < ce + B）
+    //   後方向: 既存が希望 end の B 分以内から始まる（cs - B < we）
+    if (cs - bufMs < we && ws < ce + bufMs) nearBuffer = true;
   }
 
   if (nearBuffer) return { available: false, reason: 'buffer' };

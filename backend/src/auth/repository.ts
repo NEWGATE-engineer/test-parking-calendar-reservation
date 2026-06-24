@@ -46,6 +46,18 @@ export interface InsertRefreshTokenInput {
   expiresAt: Date;
 }
 
+/** 照合で取得する RefreshToken 行（必要な列のみ）。 */
+export interface RefreshTokenRow {
+  id: string;
+  user_id: string;
+  /** 系統 ID（系統一括失効の単位）。 */
+  family_id: string;
+  /** 失効時刻。`null` は有効。 */
+  revoked_at: Date | null;
+  /** 失効期限（UTC）。 */
+  expires_at: Date;
+}
+
 /**
  * メール重複（`UQ_User_email` 違反）を表すドメインエラー。
  * サービス層がこれを捕捉して HTTP 409 に変換する。
@@ -93,6 +105,29 @@ export interface AuthRepository {
    * @param input 保存内容（user/family/hash/expires）
    */
   insertRefreshToken(input: InsertRefreshTokenInput): Promise<void>;
+  /**
+   * ハッシュでリフレッシュトークンを1件引く（ローテーション照合用）。
+   * @param tokenHash 提示トークンの SHA-256
+   * @returns 該当行、無ければ `null`
+   */
+  findRefreshTokenByHash(tokenHash: Buffer): Promise<RefreshTokenRow | null>;
+  /**
+   * 指定 ID のトークンを**条件付き**で失効する（`revoked_at IS NULL` のときのみ）。
+   * @param id RefreshToken.id
+   * @returns 失効できたら `true`（＝ローテーションの勝者）、既に失効済み等で0件なら `false`
+   */
+  revokeRefreshTokenById(id: string): Promise<boolean>;
+  /**
+   * 系統（family）の未失効トークンを一括失効する（リフレッシュ再利用検知時）。
+   * @param familyId 系統 ID
+   */
+  revokeFamily(familyId: string): Promise<void>;
+  /**
+   * 本人の未失効リフレッシュトークンを失効する（logout）。
+   * @param userId 所有者
+   * @param tokenHash 失効対象トークンの SHA-256
+   */
+  revokeRefreshTokenByHashForUser(userId: string, tokenHash: Buffer): Promise<void>;
 }
 
 /**
@@ -216,6 +251,60 @@ export class SqlAuthRepository implements AuthRepository {
       .query(
         `INSERT INTO RefreshToken (user_id, family_id, token_hash, expires_at)
          VALUES (@user_id, @family_id, @token_hash, @expires_at)`,
+      );
+  }
+
+  /** @inheritDoc */
+  async findRefreshTokenByHash(tokenHash: Buffer): Promise<RefreshTokenRow | null> {
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input('token_hash', mssql.VarBinary(32), tokenHash)
+      .query<RefreshTokenRow>(
+        `SELECT id, user_id, family_id, revoked_at, expires_at
+         FROM RefreshToken WHERE token_hash = @token_hash`,
+      );
+    return result.recordset[0] ?? null;
+  }
+
+  /** @inheritDoc */
+  async revokeRefreshTokenById(id: string): Promise<boolean> {
+    const pool = await getPool();
+    // 「現在状態(revoked_at IS NULL)を WHERE に含めた条件付き UPDATE」。
+    // 同時/再送で複数回ローテーションを試みても、失効できるのは1回だけ＝勝者を一意にする。
+    const result = await pool
+      .request()
+      .input('id', mssql.UniqueIdentifier, id)
+      .query(
+        `UPDATE RefreshToken SET revoked_at = SYSUTCDATETIME()
+         WHERE id = @id AND revoked_at IS NULL`,
+      );
+    // rowsAffected[0] が 1 なら自分が失効できた（＝勝者）
+    return (result.rowsAffected[0] ?? 0) === 1;
+  }
+
+  /** @inheritDoc */
+  async revokeFamily(familyId: string): Promise<void> {
+    const pool = await getPool();
+    await pool
+      .request()
+      .input('family_id', mssql.UniqueIdentifier, familyId)
+      .query(
+        `UPDATE RefreshToken SET revoked_at = SYSUTCDATETIME()
+         WHERE family_id = @family_id AND revoked_at IS NULL`,
+      );
+  }
+
+  /** @inheritDoc */
+  async revokeRefreshTokenByHashForUser(userId: string, tokenHash: Buffer): Promise<void> {
+    const pool = await getPool();
+    await pool
+      .request()
+      .input('user_id', mssql.UniqueIdentifier, userId)
+      .input('token_hash', mssql.VarBinary(32), tokenHash)
+      .query(
+        `UPDATE RefreshToken SET revoked_at = SYSUTCDATETIME()
+         WHERE token_hash = @token_hash AND user_id = @user_id AND revoked_at IS NULL`,
       );
   }
 }

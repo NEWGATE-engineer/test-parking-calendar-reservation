@@ -91,7 +91,7 @@ paths:
               type: object
               required: [refresh_token]
               properties:
-                refresh_token: { type: string }
+                refresh_token: { type: string, maxLength: 128 }
       responses:
         '200':
           description: 再発行成功
@@ -99,6 +99,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /auth/logout:
     post:
@@ -113,10 +114,11 @@ paths:
               type: object
               required: [refresh_token]
               properties:
-                refresh_token: { type: string }
+                refresh_token: { type: string, maxLength: 128 }
       responses:
         '204': { description: 成功 }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /spots:
     get:
@@ -370,7 +372,7 @@ components:
             機械可読の理由コード。例：physical_occupancy / device_unhealthy /
             conflict_overlap / conflict_buffer / timeout / validation_error /
             unauthorized / email_conflict / invalid_credentials / account_locked /
-            account_disabled / internal_error
+            account_disabled / invalid_token / token_reused / internal_error
           example: physical_occupancy
         message: { type: string, example: 区画が使用中です }
         retryable:

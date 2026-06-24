@@ -1,6 +1,7 @@
 import express, { type Express } from 'express';
 import { errorHandler } from './http/errorHandler.js';
 import { createAuthRouter } from './auth/router.js';
+import { createSpotsRouter } from './spots/router.js';
 
 /**
  * Express アプリの組み立て。
@@ -28,8 +29,11 @@ export function buildApp(): Express {
     res.json({ status: 'ok' });
   });
 
-  // 認証ルート（register / login。refresh / logout は 2c で追加）
+  // 認証ルート（register / login / refresh / logout）
   app.use('/auth', createAuthRouter());
+
+  // 区画・満空・予約可否（要認証・読み取り専用）
+  app.use('/spots', createSpotsRouter());
 
   // エラーハンドラは必ず最後（前段ハンドラの例外を集約して整形する）
   app.use(errorHandler);

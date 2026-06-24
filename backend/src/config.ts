@@ -69,4 +69,18 @@ export const config = {
     /** ロックする分数。仮: 15分。 */
     lockMinutes: num('LOGIN_LOCK_MINUTES', 15),
   },
+  /** 予約ドメインの設定。いずれも仮値（要件 §12。確定したら env で上書き）。 */
+  reservation: {
+    /** 近接予約のバッファ時間 B（§12 #4）。仮: 15分。 */
+    bufferMinutes: num('RESERVATION_BUFFER_MIN', 15),
+    /** 料金単価（§12 #1）。仮: unitMinutes ごとに unitPriceJpy 円。 */
+    unitPriceJpy: num('RESERVATION_UNIT_PRICE_JPY', 100),
+    /** 課金単位（分）。仮: 30分。 */
+    unitMinutes: num('RESERVATION_UNIT_MINUTES', 30),
+  },
+  /** デバイス健全性（§8・§12 #14）。仮値。 */
+  device: {
+    /** last_seen_at がこの分数以内なら健全とみなす。仮: 10分。 */
+    healthThresholdMinutes: num('DEVICE_HEALTH_THRESHOLD_MIN', 10),
+  },
 } as const;

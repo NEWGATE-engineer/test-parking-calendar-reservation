@@ -98,11 +98,21 @@ describe('AuthService.logout', () => {
 
     await svc.logout(userId, reg.refresh_token);
 
-    // logout で失効済みになったため、その後の refresh は再使用扱い
+    // logout で失効済みになったため、その後の refresh は再使用扱い＝family 一括失効が発火
     await expect(svc.refresh(reg.refresh_token)).rejects.toMatchObject({ httpStatus: 401, code: 'token_reused' });
+    expect(repo.revokeFamily).toHaveBeenCalledTimes(1); // 盗まれた logout 済みトークンを使った攻撃への防御
     // 当該トークンが実際に失効済みになっていることも確認
     const stored = repo.refreshTokens.find((t) => t.token_hash.equals(sha256(reg.refresh_token)));
     expect(stored?.revoked_at).not.toBeNull();
+  });
+
+  it('logout 後もアクセストークンは有効期限まで有効（denylist なし・MVP 設計）', async () => {
+    const { svc, reg } = await registered();
+    const userId = verifyAccessToken(reg.access_token).sub;
+    await svc.logout(userId, reg.refresh_token);
+    // MVP は access の denylist を持たないため、logout してもアクセストークンの検証は通る。
+    // 将来 denylist を導入したらこのテストが落ちて設計変更を検知できる。
+    expect(() => verifyAccessToken(reg.access_token)).not.toThrow();
   });
 
   it('他ユーザーの refresh_token を指定しても失効しない（越権防止）', async () => {

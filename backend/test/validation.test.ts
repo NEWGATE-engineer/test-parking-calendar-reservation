@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRegister, parseLogin } from '../src/auth/validation.js';
+import { parseRegister, parseLogin, parseRefreshToken } from '../src/auth/validation.js';
 import { AppError } from '../src/http/errors.js';
 
 describe('parseRegister', () => {
@@ -28,5 +28,19 @@ describe('parseLogin', () => {
 
   it('欠落は 422', () => {
     expect(() => parseLogin({ email: 'a@b.com' })).toThrow(AppError);
+  });
+});
+
+describe('parseRefreshToken', () => {
+  it('正常な refresh_token を受理', () => {
+    expect(parseRefreshToken({ refresh_token: 'abc123' })).toEqual({ refreshToken: 'abc123' });
+  });
+
+  it('refresh_token 欠落は 422', () => {
+    expect(() => parseRefreshToken({})).toThrow(AppError);
+  });
+
+  it('上限長を超える refresh_token は 422（多層防御）', () => {
+    expect(() => parseRefreshToken({ refresh_token: 'a'.repeat(129) })).toThrow(AppError);
   });
 });

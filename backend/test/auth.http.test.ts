@@ -93,12 +93,13 @@ describe('POST /auth/refresh', () => {
     expect(res.body.refresh_token).not.toBe(reg.body.refresh_token);
   });
 
-  it('不明なトークンは 401', async () => {
+  it('不明なトークンは 401 invalid_token', async () => {
     const res = await request(buildTestApp()).post('/auth/refresh').send({ refresh_token: 'nope' });
     expect(res.status).toBe(401);
+    expect(res.body.code).toBe('invalid_token'); // 401 の中の意味も検証
   });
 
-  it('ローテーション後に旧トークンを再使用すると 401（HTTP 層）', async () => {
+  it('ローテーション後に旧トークンを再使用すると 401 token_reused（HTTP 層）', async () => {
     const app = buildTestApp();
     const reg = await request(app)
       .post('/auth/register')
@@ -106,6 +107,7 @@ describe('POST /auth/refresh', () => {
     await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
     const reuse = await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
     expect(reuse.status).toBe(401);
+    expect(reuse.body.code).toBe('token_reused'); // invalid_token と区別される
   });
 
   it('refresh_token 欠落は 422', async () => {

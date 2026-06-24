@@ -52,4 +52,24 @@ describe('SpotsService.getAvailability', () => {
     const [a] = await new SpotsService(repo).getAvailability(start, end);
     expect(a?.reason).toBe('device_unhealthy');
   });
+
+  it('他区画の conflict は同区画に影響しない（bySpot Map の分離）', async () => {
+    const repo = makeMockSpotsRepo(
+      [spot('A', 'vacant', new Date()), spot('B', 'vacant', new Date())],
+      // spot A のみ重複予約あり、B には無し
+      [{ spot_id: 'A', start_time: new Date('2026-06-24T10:30:00Z'), end_time: new Date('2026-06-24T12:00:00Z') }],
+    );
+    const results = await new SpotsService(repo).getAvailability(start, end);
+    const a = results.find((r) => r.spot_id === 'A');
+    const b = results.find((r) => r.spot_id === 'B');
+    expect(a?.reason).toBe('reserved');
+    expect(b?.reason).toBe('ok'); // B へ誤適用されていない
+  });
+
+  it('findActiveReservationsInWindow に start/end と config のバッファ分を渡す', async () => {
+    const repo = makeMockSpotsRepo([spot('1', 'vacant', new Date())]);
+    await new SpotsService(repo).getAvailability(start, end);
+    // 第3引数は config.reservation.bufferMinutes（既定 仮15分）
+    expect(repo.findActiveReservationsInWindow).toHaveBeenCalledWith(start, end, 15);
+  });
 });

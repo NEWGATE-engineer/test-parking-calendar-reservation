@@ -59,4 +59,13 @@ describe('GET /spots/availability', () => {
     const res = await request(buildApp(repo)).get('/spots/availability').set('authorization', auth);
     expect(res.status).toBe(422);
   });
+
+  it('end === start（ゼロ幅）は 422', async () => {
+    const repo = makeMockSpotsRepo([]);
+    const res = await request(buildApp(repo))
+      .get('/spots/availability')
+      .query({ start: '2026-06-24T10:00:00Z', end: '2026-06-24T10:00:00Z' })
+      .set('authorization', auth);
+    expect(res.status).toBe(422);
+  });
 });

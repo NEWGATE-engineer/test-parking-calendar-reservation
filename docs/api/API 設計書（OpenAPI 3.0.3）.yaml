@@ -91,7 +91,7 @@ paths:
               type: object
               required: [refresh_token]
               properties:
-                refresh_token: { type: string }
+                refresh_token: { type: string, maxLength: 128 }
       responses:
         '200':
           description: 再発行成功
@@ -114,7 +114,7 @@ paths:
               type: object
               required: [refresh_token]
               properties:
-                refresh_token: { type: string }
+                refresh_token: { type: string, maxLength: 128 }
       responses:
         '204': { description: 成功 }
         '401': { $ref: '#/components/responses/Unauthorized' }

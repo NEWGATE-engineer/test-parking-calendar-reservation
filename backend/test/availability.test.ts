@@ -61,4 +61,14 @@ describe('availabilityForSpot', () => {
     const c = { start: new Date('2026-06-24T09:00:00Z'), end: new Date('2026-06-24T09:45:00Z') };
     expect(availabilityForSpot({ ...base, conflicts: [c] })).toEqual({ available: true, reason: 'ok' });
   });
+
+  it('buffer 近接と reserved が混在しても reserved が優先される（並び順に依存しない）', () => {
+    const cBuffer = { start: new Date('2026-06-24T11:10:00Z'), end: new Date('2026-06-24T12:00:00Z') }; // 近接
+    const cReserved = { start: new Date('2026-06-24T10:30:00Z'), end: new Date('2026-06-24T11:00:00Z') }; // 重複
+    // buffer を先に並べても、重複(reserved)があれば reserved を返す
+    expect(availabilityForSpot({ ...base, conflicts: [cBuffer, cReserved] })).toEqual({
+      available: false,
+      reason: 'reserved',
+    });
+  });
 });

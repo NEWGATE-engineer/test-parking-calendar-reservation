@@ -61,7 +61,9 @@ export class SqlSpotsRepository implements SpotsRepository {
   ): Promise<ReservationWindow[]> {
     const pool = await getPool();
     // バッファ込みの重なり条件: start < end_existing + B AND start_existing < end + B
-    // （DATEADD でバッファを両端に広げて判定）。IX_Reservation_spot_time が効く。
+    // （DATEADD でバッファを両端に広げて判定）。全区画一括＝spot_id 等値が無いため
+    // 先頭キー spot_id の IX_Reservation_spot_time は効かず、IX_Reservation_availability
+    // （先頭 start_time・migrations/002）の range シークが効く。
     const result = await pool
       .request()
       .input('start', mssql.DateTime2(3), start)

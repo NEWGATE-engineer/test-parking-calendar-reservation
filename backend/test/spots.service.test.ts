@@ -3,7 +3,7 @@ import { SpotsService } from '../src/spots/service.js';
 import { makeMockSpotsRepo } from './helpers/mockSpotsRepo.js';
 import type { SpotWithDevice } from '../src/spots/repository.js';
 
-function spot(id: string, occupancy: string, lastSeenAt: Date | null): SpotWithDevice {
+function spot(id: string, occupancy: 'occupied' | 'vacant', lastSeenAt: Date | null): SpotWithDevice {
   return { id, name: `spot-${id}`, occupancy, last_seen_at: lastSeenAt };
 }
 

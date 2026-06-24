@@ -205,10 +205,16 @@ GO
    インデックス
    ============================================================ */
 
--- 競合チェック（バッファ込み）・availability の範囲検索用(§4.3.2)
+-- 競合チェック（バッファ込み・予約作成時の単一区画走査）用(§4.3.2)
 -- spot_id で等値→start_time/end_time で範囲、status は被覆のため INCLUDE
 CREATE INDEX IX_Reservation_spot_time
     ON Reservation (spot_id, start_time, end_time) INCLUDE (status);
+GO
+
+-- GET /spots/availability（全区画一括・spot_id 等値なし）の範囲検索用。migrations/002 で追加。
+-- start_time の範囲シーク＋ spot_id/status を被覆（end_time 側は DATEADD のため残余述語）。
+CREATE INDEX IX_Reservation_availability
+    ON Reservation (start_time, end_time) INCLUDE (spot_id, status);
 GO
 
 -- マイページの予約・履歴一覧（status/end_time を被覆してキー参照を回避）

@@ -4,7 +4,7 @@ import { withSerializableTx, type TxRunner } from '../db.js';
 import { availabilityForSpot, isDeviceHealthy, type AvailabilityReason } from '../spots/availability.js';
 import { estimateSlotFee } from './fee.js';
 import { assertMergedWindow, type CreateReservationInput, type ReservationPatch } from './validation.js';
-import type { ReservationsRepository, ReservationStatus } from './repository.js';
+import type { ReservationsRepository, ReservationStatus, ReservationRow } from './repository.js';
 
 /**
  * 予約のユースケース。
@@ -224,17 +224,12 @@ export class ReservationsService {
   /**
    * DB の予約行を、見込み料金つきの API レスポンスへ整形する（作成・変更・一覧で共有）。
    *
+   * 引数は {@link ReservationRow} 形（`CreatedReservation` や update の確定値も構造的に適合）。
+   *
    * @param row 予約行（時刻は Date）
    * @returns ReservationResponse（時刻は ISO 文字列・estimated_slot_fee つき）
    */
-  private toResponse(row: {
-    id: string;
-    spot_id: string;
-    start_time: Date;
-    end_time: Date;
-    status: ReservationStatus;
-    created_at: Date;
-  }): ReservationResponse {
+  private toResponse(row: ReservationRow): ReservationResponse {
     const estimatedSlotFee = estimateSlotFee(row.start_time, row.end_time, config.reservation);
     return {
       id: row.id,

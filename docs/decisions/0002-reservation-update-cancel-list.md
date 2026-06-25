@@ -39,7 +39,7 @@ CLAUDE.md の原則どおり、変更・キャンセルとも `WHERE id=@id AND 
 ### 4. PUT は部分更新（PATCH 風マージ）
 
 `UpdateReservationRequest` は全フィールド任意。省略フィールドは**現在値を維持してマージ**し、マージ後の値で不変条件（`end>start`・過去開始でない）と競合を検証する。
-更新項目が空のボディは 422（誤呼び出し検知）。competition 再チェックでは**自分自身を除外**する（`findConflictsForSpot` の `excludeReservationId`）。
+更新項目が空のボディは 422（誤呼び出し検知）。競合再チェックでは**自分自身を除外**する（`findConflictsForSpot` の `excludeReservationId`）。
 `estimated_slot_fee` は変更後の時刻で再計算して返す（Fee 行は作らない＝完了時のみ）。
 
 ### 5. 一覧（GET）は自分の予約のみ・status 絞り込み

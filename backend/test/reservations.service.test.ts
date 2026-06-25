@@ -252,6 +252,17 @@ describe('ReservationsService.update', () => {
       }),
     );
   });
+
+  it('変更先の区画が存在しない場合は 404・UPDATE しない', async () => {
+    // 予約自体は存在する（owned あり）が、変更先 spot が DB に無い分岐
+    const repo = makeMockReservationsRepo({ owned: ownedReserved(), spot: null });
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+        spotId: '99999999-9999-9999-9999-999999999999',
+      }),
+    ).rejects.toMatchObject({ httpStatus: 404, code: 'not_found' });
+    expect(repo.updateReservation).not.toHaveBeenCalled();
+  });
 });
 
 describe('ReservationsService.cancel', () => {

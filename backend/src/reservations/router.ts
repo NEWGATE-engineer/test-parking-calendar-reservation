@@ -68,7 +68,7 @@ export function createReservationsRouter(
     }),
   );
 
-  /** DELETE /reservations/:id — 予約キャンセル（204）。要認証。reserved のみ。404 / 409。 */
+  /** DELETE /reservations/:id — 予約キャンセル（204）。要認証。reserved のみ。404 / 409 / 422。 */
   router.delete(
     '/:id',
     requireAuth,

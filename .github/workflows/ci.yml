@@ -1,0 +1,58 @@
+name: CI (backend)
+
+# backend のソース/テスト/ビルド設定を変更した PR で、型チェック(tsc --noEmit)と
+# テスト(vitest)を回す（リグレッション検知）。
+#
+# 位置づけ: これは @claude /review-pr（LLM レビュー・手動起動）とは独立した、
+# 「誰の commit でも・LLM 判断に依らず・自動で」効く決定論的な品質ゲート。
+# commit 前 Hook(.claude/hooks/pre-commit-quality.sh) は Claude が Bash で commit した
+# ときだけ発火するため、人間/IDE 経由の commit を取りこぼす。その穴を CI で塞ぐ。
+#
+# 対象は当面 backend のみ。functions/ は test 基盤未整備、mobile/ は別ツールチェーン
+# (flutter analyze / flutter test) のため、それぞれ実装が立ち上がった時点で job を足す。
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
+
+# 最小権限を明示する（pull_request の既定でも read 相当だが、意図を明確にする）。
+# このジョブはコードを読んで検証するだけで、PR への書き込みは一切しない。
+permissions:
+  contents: read
+
+# 同一 PR に連続 push したら古い実行をキャンセルし、runner の重複消費を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    # テストがハングしても runner を長時間占有しないよう上限を設ける（既定 6h は長すぎる）。
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # ローカル開発は node 24 系だが、CI は LTS の 22 に固定して再現性を確保する。
+          node-version: 22
+          # 依存キャッシュ。lockfile を鍵にするので backend/package-lock.json を明示する
+          # （working-directory はキャッシュ解決には効かないため）。
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies (clean, lockfile-faithful)
+        # npm install ではなく npm ci: package-lock.json に厳密一致させ、CI の再現性を担保する。
+        run: npm ci
+
+      - name: Type check (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Test (vitest)
+        run: npm test

@@ -66,6 +66,21 @@ describe('POST /reservations', () => {
     expect(res.body).toMatchObject({ code: 'conflict_overlap', retryable: false });
   });
 
+  it('バッファ未満の近接は 409 conflict_buffer', async () => {
+    const res = await request(
+      buildApp({
+        spot: { id: SPOT_ID, last_seen_at: new Date() },
+        // 希望 10:00–11:00 の直後 11:05 開始（重ならないがバッファ 15分未満）
+        conflicts: [{ start: new Date('2099-06-25T11:05:00Z'), end: new Date('2099-06-25T12:00:00Z') }],
+      }),
+    )
+      .post('/reservations')
+      .set('authorization', auth)
+      .send(validBody());
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ code: 'conflict_buffer', retryable: false });
+  });
+
   it('デバイス不健全は 409 device_unhealthy', async () => {
     const res = await request(buildApp({ spot: { id: SPOT_ID, last_seen_at: null } }))
       .post('/reservations')
@@ -89,6 +104,14 @@ describe('POST /reservations', () => {
       .post('/reservations')
       .set('authorization', auth)
       .send({ spot_id: SPOT_ID, start_time: '2099-06-25T11:00:00Z', end_time: '2099-06-25T10:00:00Z' });
+    expect(res.status).toBe(422);
+  });
+
+  it('end == start（ゼロ幅）は 422', async () => {
+    const res = await request(buildApp())
+      .post('/reservations')
+      .set('authorization', auth)
+      .send({ spot_id: SPOT_ID, start_time: '2099-06-25T10:00:00Z', end_time: '2099-06-25T10:00:00Z' });
     expect(res.status).toBe(422);
   });
 

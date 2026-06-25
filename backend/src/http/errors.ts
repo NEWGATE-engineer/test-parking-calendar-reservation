@@ -68,3 +68,12 @@ export const unauthorized = (message = '認証が必要です'): AppError =>
  */
 export const validationError = (message = '入力が不正です'): AppError =>
   new AppError(422, 'validation_error', message);
+
+/**
+ * 404 リソース不在エラーを生成するショートカット。
+ *
+ * 「他人の資源」も存在を秘匿するため 403 ではなく 404 で扱う（情報漏洩・列挙対策）。
+ * @param message 任意のメッセージ
+ */
+export const notFound = (message = '対象が見つかりません'): AppError =>
+  new AppError(404, 'not_found', message);

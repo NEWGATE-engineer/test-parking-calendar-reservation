@@ -11,7 +11,7 @@
 | `database/` | DB スキーマ・データモデル | ER図.md, SQLServerDDL.sql |
 | `ui/` | 画面設計・UI/UX | 画面設計・画面遷移図.md |
 | `setup/` | 環境構築・セットアップ手順 | 環境構築手順書.md |
-| `decisions/` | 設計判断の記録 (ADR) | （今後追記） |
+| `decisions/` | 設計判断の記録 (ADR) | 0001-reservation-create-concurrency.md |
 
 そのほか:
 

@@ -51,6 +51,16 @@ describe('GateDownService.execute', () => {
     expect(port.sendDown).not.toHaveBeenCalled();
   });
 
+  it('recordResult が DB エラーでもドメイン例外(409)を握り潰さない', async () => {
+    // status=active → invalid_state 経路で recordResult を通る。その UPDATE が reject しても
+    // best-effort で握り、本来の AppError(409 invalid_state) が呼び出し元へ伝播すること。
+    const repo = makeMockCommandLogRepo({ context: ctx({ status: 'active' }) });
+    repo.updateCommandResult = () => Promise.reject(new Error('DB error'));
+    await expect(
+      new GateDownService(repo, mockDevicePortOk()).execute('user-1', 'resv-1', RID),
+    ).rejects.toMatchObject({ httpStatus: 409, code: 'invalid_state' });
+  });
+
   it('予約期間外（end 過去）は 409 invalid_state', async () => {
     const repo = makeMockCommandLogRepo({
       context: ctx({

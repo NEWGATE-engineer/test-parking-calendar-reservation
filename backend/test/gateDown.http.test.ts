@@ -57,6 +57,27 @@ describe('POST /reservations/:id/gate-down', () => {
     expect(res.status).toBe(404);
   });
 
+  it('reserved 以外は 409 invalid_state', async () => {
+    const res = await request(
+      buildApp({
+        context: {
+          status: 'active',
+          start_time: new Date(Date.now() - 60 * 60_000),
+          end_time: new Date(Date.now() + 60 * 60_000),
+          spot_id: 'spot-1',
+          occupancy: 'vacant',
+          device_id: 'device-1',
+          device_last_seen_at: new Date(),
+        },
+      }),
+    )
+      .post(PATH)
+      .set('authorization', auth)
+      .send(body);
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('invalid_state');
+  });
+
   it('物理占有は 409 physical_occupancy', async () => {
     const res = await request(
       buildApp({

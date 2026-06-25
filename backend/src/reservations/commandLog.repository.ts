@@ -63,10 +63,12 @@ export interface CommandLogRepository {
   ): Promise<{ id: string; result: CommandResult } | null>;
   /**
    * CommandLog の結果を更新する（pending → success / failure）。
+   * 現在状態 `result='pending'` を WHERE に含めた条件付き UPDATE（CLAUDE.md）。
    * @param commandId 対象 CommandLog.id
    * @param result 確定結果
+   * @returns 更新できた行数（0=既に pending でなかった＝競合／二重更新）
    */
-  updateCommandResult(commandId: string, result: 'success' | 'failure'): Promise<void>;
+  updateCommandResult(commandId: string, result: 'success' | 'failure'): Promise<number>;
 }
 
 /**
@@ -150,17 +152,19 @@ export class SqlCommandLogRepository implements CommandLogRepository {
   }
 
   /** @inheritDoc */
-  async updateCommandResult(commandId: string, result: 'success' | 'failure'): Promise<void> {
+  async updateCommandResult(commandId: string, result: 'success' | 'failure'): Promise<number> {
     const pool = await getPool();
-    // device_responded_at は結果確定時刻として記録する（監査用）。
-    await pool
+    // 現在状態 result='pending' を WHERE に含めた条件付き UPDATE（CLAUDE.md）。
+    // 0件＝既に pending でない（二重更新・競合）。device_responded_at は結果確定時刻（監査用）。
+    const res = await pool
       .request()
       .input('id', mssql.UniqueIdentifier, commandId)
       .input('result', mssql.VarChar(10), result)
       .query(
         `UPDATE CommandLog
          SET result = @result, device_responded_at = SYSUTCDATETIME()
-         WHERE id = @id`,
+         WHERE id = @id AND result = 'pending'`,
       );
+    return res.rowsAffected[0] ?? 0;
   }
 }

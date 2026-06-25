@@ -42,7 +42,7 @@ export class GateDownService {
    *
    * 流れ（F4-6）: 冪等再送チェック → コンテキスト取得(404) → pending INSERT →
    * 状態/期間(409) → 物理占有(409) → デバイス健全性(503) → デバイス送信(504/200)。
-   * 404・invalid 以外の各分岐は CommandLog を failure/success に更新してから返す。
+   * 404・冪等再送 以外の各分岐は CommandLog を failure/success に更新してから返す。
    *
    * @param userId 認証済みユーザー ID（予約の所有者）
    * @param reservationId 予約 ID
@@ -119,7 +119,11 @@ export class GateDownService {
    */
   private async recordResult(commandId: string, result: 'success' | 'failure'): Promise<void> {
     try {
-      await this.repo.updateCommandResult(commandId, result);
+      const rows = await this.repo.updateCommandResult(commandId, result);
+      // 条件付き UPDATE が 0 件＝既に pending でない（二重更新・競合）。監査として警告に留める。
+      if (rows === 0) {
+        console.warn(`CommandLog が pending でなく更新されず (id=${commandId}, result=${result})`);
+      }
     } catch (err) {
       // 監査記録の失敗はユーザー応答に影響させない（結果自体は確定している）
       console.error(`CommandLog 結果更新に失敗 (id=${commandId}, result=${result}):`, err);

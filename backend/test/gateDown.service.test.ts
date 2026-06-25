@@ -61,6 +61,7 @@ describe('GateDownService.execute', () => {
     await expect(
       new GateDownService(repo, mockDevicePortOk()).execute('user-1', 'resv-1', RID),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'invalid_state' });
+    expect(repo.updateCommandResult).toHaveBeenCalledWith('cmd-1', 'failure');
   });
 
   it('予約開始前（start 未来）は 409 invalid_state・device 未送信', async () => {
@@ -75,6 +76,7 @@ describe('GateDownService.execute', () => {
       new GateDownService(repo, port).execute('user-1', 'resv-1', RID),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'invalid_state' });
     expect(port.sendDown).not.toHaveBeenCalled();
+    expect(repo.updateCommandResult).toHaveBeenCalledWith('cmd-1', 'failure');
   });
 
   it('物理占有中は 409 physical_occupancy・device 未送信', async () => {
@@ -84,6 +86,7 @@ describe('GateDownService.execute', () => {
       new GateDownService(repo, port).execute('user-1', 'resv-1', RID),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'physical_occupancy' });
     expect(port.sendDown).not.toHaveBeenCalled();
+    expect(repo.updateCommandResult).toHaveBeenCalledWith('cmd-1', 'failure');
   });
 
   it('デバイス不健全（last_seen_at 古い）は 503・device 未送信', async () => {
@@ -95,6 +98,7 @@ describe('GateDownService.execute', () => {
       new GateDownService(repo, port).execute('user-1', 'resv-1', RID),
     ).rejects.toMatchObject({ httpStatus: 503, code: 'device_unhealthy' });
     expect(port.sendDown).not.toHaveBeenCalled();
+    expect(repo.updateCommandResult).toHaveBeenCalledWith('cmd-1', 'failure');
   });
 
   it('デバイス未割当（device_id=null）も 503', async () => {
@@ -104,6 +108,7 @@ describe('GateDownService.execute', () => {
     await expect(
       new GateDownService(repo, mockDevicePortOk()).execute('user-1', 'resv-1', RID),
     ).rejects.toMatchObject({ httpStatus: 503, code: 'device_unhealthy' });
+    expect(repo.updateCommandResult).toHaveBeenCalledWith('cmd-1', 'failure');
   });
 
   it('デバイス無応答は 504 timeout（retryable）・failure 更新', async () => {

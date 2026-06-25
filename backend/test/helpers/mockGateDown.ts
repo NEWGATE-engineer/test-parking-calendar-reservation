@@ -49,7 +49,7 @@ export function makeMockCommandLogRepo(options: MockCommandLogOptions = {}): Com
     findCommandByRequestId: vi.fn(
       (): Promise<{ id: string; result: CommandResult } | null> => Promise.resolve(existing),
     ),
-    updateCommandResult: vi.fn((): Promise<void> => Promise.resolve()),
+    updateCommandResult: vi.fn((): Promise<number> => Promise.resolve(1)),
   };
 }
 

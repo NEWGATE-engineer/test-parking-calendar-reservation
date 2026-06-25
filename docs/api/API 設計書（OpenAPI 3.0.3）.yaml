@@ -208,6 +208,7 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/ReservationResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /reservations/{id}:
     description: 他人の予約 ID は存在しないものとして 404 を返す（情報漏洩防止のため 403 は使わない）。
@@ -231,7 +232,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: reserved 以外は変更不可、または競合（Error.code で区別）
+          description: >
+            reserved 以外は変更不可、または競合。Error.code で区別する：
+            not_modifiable（reserved 以外／判定後に状態変化）／
+            conflict_overlap（時間帯重複）／conflict_buffer（バッファ未満の近接）／
+            device_unhealthy（デバイス不健全）。いずれも retryable=false。
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -244,7 +249,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: reserved 以外は取消不可（retryable=false）
+          description: reserved 以外は取消不可。Error.code=not_cancelable（retryable=false）。
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -371,9 +376,10 @@ components:
           type: string
           description: >
             機械可読の理由コード。例：physical_occupancy / device_unhealthy /
-            conflict_overlap / conflict_buffer / timeout / validation_error /
-            not_found / unauthorized / email_conflict / invalid_credentials /
-            account_locked / account_disabled / invalid_token / token_reused / internal_error
+            conflict_overlap / conflict_buffer / not_modifiable / not_cancelable /
+            timeout / validation_error / not_found / unauthorized / email_conflict /
+            invalid_credentials / account_locked / account_disabled / invalid_token /
+            token_reused / internal_error
           example: physical_occupancy
         message: { type: string, example: 区画が使用中です }
         retryable:

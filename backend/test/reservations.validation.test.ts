@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseCreateReservationBody } from '../src/reservations/validation.js';
+import {
+  parseCreateReservationBody,
+  parseUpdateReservationBody,
+  parseListQuery,
+  parseReservationId,
+} from '../src/reservations/validation.js';
 import { AppError } from '../src/http/errors.js';
 
 /** 過去日時判定の基準（固定）。これより後の時刻を「未来」とみなす。 */
@@ -97,5 +102,86 @@ describe('parseCreateReservationBody', () => {
     it('文字列は 422', () => {
       expect422('not-an-object');
     });
+  });
+});
+
+/** 任意の検証関数が 422（validation_error）を投げることを表明する。 */
+function expectThrows422(fn: () => unknown): void {
+  try {
+    fn();
+    throw new Error('AppError(422) を期待したが投げられなかった');
+  } catch (err) {
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).httpStatus).toBe(422);
+    expect((err as AppError).code).toBe('validation_error');
+  }
+}
+
+describe('parseUpdateReservationBody', () => {
+  it('指定フィールドのみのパッチを返す', () => {
+    const patch = parseUpdateReservationBody({ end_time: '2099-06-25T12:00:00Z' });
+    expect(patch.end?.toISOString()).toBe('2099-06-25T12:00:00.000Z');
+    expect(patch.spotId).toBeUndefined();
+    expect(patch.start).toBeUndefined();
+  });
+
+  it('全項目省略（空更新）は 422', () => {
+    expectThrows422(() => parseUpdateReservationBody({}));
+  });
+
+  it('spot_id が UUID でないと 422', () => {
+    expectThrows422(() => parseUpdateReservationBody({ spot_id: 'bad' }));
+  });
+
+  it('start_time が日時不正だと 422', () => {
+    expectThrows422(() => parseUpdateReservationBody({ start_time: 'いつか' }));
+  });
+
+  it('配列ボディは（更新項目なし扱いで）422', () => {
+    expectThrows422(() => parseUpdateReservationBody([]));
+  });
+
+  it('end<=start の不変条件はここでは見ない（マージ後に検証）', () => {
+    // 形式が正しければ通る（cross-field は service 側の assertMergedWindow が担当）
+    const patch = parseUpdateReservationBody({
+      start_time: '2099-06-25T11:00:00Z',
+      end_time: '2099-06-25T10:00:00Z',
+    });
+    expect(patch.start).toBeInstanceOf(Date);
+    expect(patch.end).toBeInstanceOf(Date);
+  });
+});
+
+describe('parseListQuery', () => {
+  it('status 未指定は空オブジェクト', () => {
+    expect(parseListQuery({})).toEqual({});
+  });
+
+  it('空文字 status は無視（空オブジェクト）', () => {
+    expect(parseListQuery({ status: '' })).toEqual({});
+  });
+
+  it('既知の status は通す', () => {
+    expect(parseListQuery({ status: 'cancelled' })).toEqual({ status: 'cancelled' });
+  });
+
+  it('未知の status は 422', () => {
+    expectThrows422(() => parseListQuery({ status: 'bogus' }));
+  });
+});
+
+describe('parseReservationId', () => {
+  it('UUID を通す', () => {
+    expect(parseReservationId('22222222-2222-2222-2222-222222222222')).toBe(
+      '22222222-2222-2222-2222-222222222222',
+    );
+  });
+
+  it('UUID でない文字列は 422', () => {
+    expectThrows422(() => parseReservationId('not-a-uuid'));
+  });
+
+  it('undefined（パスパラメータ欠落）は 422', () => {
+    expectThrows422(() => parseReservationId(undefined));
   });
 });

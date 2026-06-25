@@ -1,0 +1,54 @@
+name: Supply chain audit
+
+# 依存（lockfile / manifest）が変わる PR で npm audit を回し、既知のマルウェア advisory や
+# 高 severity の脆弱性を含むパッケージの混入を自動で弾く（Shai-Hulud 系サプライチェーン攻撃対策）。
+#
+# 位置づけ: ci.yml（型/テストの決定論ゲート）とは独立した「依存の健全性」ゲート。
+# malware advisory は GitHub Advisory(GHSA) で critical 扱いのため --audit-level=high で捕捉できる。
+# 既知の low/moderate（dev 限定の esbuild / upstream 待ちの uuid）は閾値未満で通し、CI を無用に
+# 止めない。新たに high/critical（＝悪性パッケージ混入を含む）が出たら PR を落とす。
+on:
+  pull_request:
+    paths:
+      - '**/package.json'
+      - '**/package-lock.json'
+      - '.github/workflows/supply-chain-audit.yml'
+
+# 読み取り専用。依存ツリーを監査するだけで PR への書き込みは一切しない。
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      # 1 プロジェクトが落ちても他の監査結果を見たいので fail-fast しない。
+      fail-fast: false
+      matrix:
+        project: [backend, functions, device-sim]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+
+      - name: Install (lockfile-faithful, no lifecycle scripts)
+        # 監査目的のインストール。--ignore-scripts で pre/post/install を実行しない
+        # （万一の悪性 postinstall を CI 上で走らせないための多層防御。audit はスクリプト不要）。
+        run: npm ci --ignore-scripts
+
+      - name: npm audit (fail on high or above)
+        # high 以上で失敗。GHSA の malware advisory は critical 扱いのためここで捕捉される。
+        run: npm audit --audit-level=high

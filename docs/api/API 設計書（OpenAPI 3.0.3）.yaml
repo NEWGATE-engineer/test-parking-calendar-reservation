@@ -177,6 +177,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ReservationResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409':
           description: >
             競合またはデバイス不健全。Error.code で区別する：
@@ -371,8 +372,8 @@ components:
           description: >
             機械可読の理由コード。例：physical_occupancy / device_unhealthy /
             conflict_overlap / conflict_buffer / timeout / validation_error /
-            unauthorized / email_conflict / invalid_credentials / account_locked /
-            account_disabled / invalid_token / token_reused / internal_error
+            not_found / unauthorized / email_conflict / invalid_credentials /
+            account_locked / account_disabled / invalid_token / token_reused / internal_error
           example: physical_occupancy
         message: { type: string, example: 区画が使用中です }
         retryable:

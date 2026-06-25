@@ -52,10 +52,15 @@ export interface CommandLogRepository {
     requestId: string;
   }): Promise<InsertPendingResult>;
   /**
-   * request_id から既存 CommandLog を引く（冪等再送の結果再現用）。
+   * 自分の request_id から既存 CommandLog を引く（冪等再送の結果再現用）。
+   * 他人の request_id を推測されても結果を漏らさないよう user_id で絞る（認可）。
    * @param requestId 冪等キー
+   * @param userId 所有者（本人以外の行は返さない）
    */
-  findCommandByRequestId(requestId: string): Promise<{ id: string; result: CommandResult } | null>;
+  findCommandByRequestId(
+    requestId: string,
+    userId: string,
+  ): Promise<{ id: string; result: CommandResult } | null>;
   /**
    * CommandLog の結果を更新する（pending → success / failure）。
    * @param commandId 対象 CommandLog.id
@@ -130,13 +135,16 @@ export class SqlCommandLogRepository implements CommandLogRepository {
   /** @inheritDoc */
   async findCommandByRequestId(
     requestId: string,
+    userId: string,
   ): Promise<{ id: string; result: CommandResult } | null> {
     const pool = await getPool();
+    // user_id を WHERE に含めて他人の CommandLog 結果が漏れないようにする（BOLA 対策）。
     const result = await pool
       .request()
       .input('request_id', mssql.NVarChar(100), requestId)
+      .input('user_id', mssql.UniqueIdentifier, userId)
       .query<{ id: string; result: CommandResult }>(
-        `SELECT id, result FROM CommandLog WHERE request_id = @request_id`,
+        `SELECT id, result FROM CommandLog WHERE request_id = @request_id AND user_id = @user_id`,
       );
     return result.recordset[0] ?? null;
   }

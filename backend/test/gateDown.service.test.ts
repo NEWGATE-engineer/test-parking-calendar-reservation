@@ -63,6 +63,20 @@ describe('GateDownService.execute', () => {
     ).rejects.toMatchObject({ httpStatus: 409, code: 'invalid_state' });
   });
 
+  it('予約開始前（start 未来）は 409 invalid_state・device 未送信', async () => {
+    const repo = makeMockCommandLogRepo({
+      context: ctx({
+        start_time: new Date(Date.now() + 60 * 60_000), // まだ開始前
+        end_time: new Date(Date.now() + 120 * 60_000),
+      }),
+    });
+    const port = mockDevicePortOk();
+    await expect(
+      new GateDownService(repo, port).execute('user-1', 'resv-1', RID),
+    ).rejects.toMatchObject({ httpStatus: 409, code: 'invalid_state' });
+    expect(port.sendDown).not.toHaveBeenCalled();
+  });
+
   it('物理占有中は 409 physical_occupancy・device 未送信', async () => {
     const repo = makeMockCommandLogRepo({ context: ctx({ occupancy: 'occupied' }) });
     const port = mockDevicePortOk();

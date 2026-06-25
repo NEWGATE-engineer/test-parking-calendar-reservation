@@ -20,6 +20,13 @@ export interface GateDownResponse {
   command_id: string;
 }
 
+/**
+ * gate-down（DOWN 指示）のユースケースサービス。
+ *
+ * 予約 CRUD（{@link ReservationsService}）とは依存（CommandLog・{@link DeviceCommandPort}）が
+ * 異なるため独立したサービスとして構成する。冪等性・失敗時の HTTP マッピング・デバイス送信の
+ * オーケストレーションを担う。
+ */
 export class GateDownService {
   /**
    * @param repo CommandLog データアクセス層
@@ -49,9 +56,9 @@ export class GateDownService {
    * @throws {AppError} 504 `timeout` — デバイス無応答（再試行可）
    */
   async execute(userId: string, reservationId: string, requestId: string): Promise<GateDownResponse> {
-    // 0) 冪等再送: 同一 request_id の既存結果を先に確認する。
+    // 0) 冪等再送: 自分の同一 request_id の既存結果を先に確認する（user_id で絞り認可も担保）。
     //    success は副作用（板ダウン）を伴うため、デバイスを再発火させず初回と同じ結果を返す。
-    const existing = await this.repo.findCommandByRequestId(requestId);
+    const existing = await this.repo.findCommandByRequestId(requestId, userId);
     if (existing !== null) return this.replay(existing);
 
     // 1) 予約コンテキスト取得。無ければ 404（他人秘匿。CommandLog も書かない＝FK 上書けない唯一の経路）。
@@ -62,7 +69,7 @@ export class GateDownService {
     //    並行する同一 request_id 再送は UNIQUE 違反で inserted:false → 冪等再送に合流。
     const ins = await this.repo.insertPendingCommand({ reservationId, userId, requestId });
     if (!ins.inserted) {
-      const concurrent = await this.repo.findCommandByRequestId(requestId);
+      const concurrent = await this.repo.findCommandByRequestId(requestId, userId);
       if (concurrent !== null) return this.replay(concurrent);
       // 競合で消えた等の極稀ケースは処理中として扱う
       throw new AppError(409, 'command_in_progress', '同じ操作を処理中です', false);
@@ -73,31 +80,50 @@ export class GateDownService {
     const now = new Date();
     const inPeriod = now.getTime() >= ctx.start_time.getTime() && now.getTime() <= ctx.end_time.getTime();
     if (ctx.status !== 'reserved' || !inPeriod) {
-      await this.repo.updateCommandResult(commandId, 'failure');
+      await this.recordResult(commandId, 'failure');
       throw new AppError(409, 'invalid_state', 'この予約は現在 DOWN 指示できません', false);
     }
 
     // 4) 物理占有の事前判定（occupancy=occupied は IoT を呼ぶ前に拒否）。
     if (ctx.occupancy === 'occupied') {
-      await this.repo.updateCommandResult(commandId, 'failure');
+      await this.recordResult(commandId, 'failure');
       throw new AppError(409, 'physical_occupancy', '区画が使用中です', false);
     }
 
     // 5) デバイス事前 NG（last_seen_at が古い／未割当）。IoT を呼ばず即時 503（タイムアウト待ちを避ける）。
     const healthy = isDeviceHealthy(ctx.device_last_seen_at, config.device.healthThresholdMinutes, now);
     if (!healthy || ctx.device_id === null) {
-      await this.repo.updateCommandResult(commandId, 'failure');
+      await this.recordResult(commandId, 'failure');
       throw new AppError(503, 'device_unhealthy', 'デバイスが応答できる状態にありません', false);
     }
 
     // 6) デバイスへ DOWN 送信。無応答(timeout)は failure→504(retryable)、成功は success→200。
     const sent = await this.devicePort.sendDown(ctx.device_id, requestId);
     if (!sent.ok) {
-      await this.repo.updateCommandResult(commandId, 'failure');
+      await this.recordResult(commandId, 'failure');
       throw new AppError(504, 'timeout', 'デバイスが応答しませんでした', true);
     }
-    await this.repo.updateCommandResult(commandId, 'success');
+    await this.recordResult(commandId, 'success');
     return { result: 'down', command_id: commandId };
+  }
+
+  /**
+   * CommandLog の結果を best-effort で記録する。
+   *
+   * 監査用の UPDATE が DB エラーで失敗しても、本来返すべきドメイン結果（AppError や 200）を
+   * 握り潰して 500 にしないよう、失敗はログに留めて握る。これにより「結果 UPDATE 失敗 →
+   * 例外が AppError を覆い隠す → CommandLog が pending 残留」という不具合を避ける。
+   *
+   * @param commandId 対象 CommandLog.id
+   * @param result 確定結果
+   */
+  private async recordResult(commandId: string, result: 'success' | 'failure'): Promise<void> {
+    try {
+      await this.repo.updateCommandResult(commandId, result);
+    } catch (err) {
+      // 監査記録の失敗はユーザー応答に影響させない（結果自体は確定している）
+      console.error(`CommandLog 結果更新に失敗 (id=${commandId}, result=${result}):`, err);
+    }
   }
 
   /**

@@ -488,6 +488,7 @@ components:
       properties:
         request_id:
           type: string
+          maxLength: 100
           description: 冪等キー。送信操作ごとに採番（トランスポート再送は同一キーで吸収）
 
     GateDownResponse:

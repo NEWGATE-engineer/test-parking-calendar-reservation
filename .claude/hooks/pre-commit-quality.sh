@@ -21,10 +21,17 @@ set -euo pipefail
 
 # --- 1) stdin の JSON からツールのコマンド文字列を取り出す -------------------
 #     jq の代わりに node で .tool_input.command を抽出（無ければ空文字）。
+#     node 不在でも `|| true` で落とさず fail-open する（commit 自体は壊さない）。
 payload="$(cat)"
 command_str="$(
-  printf '%s' "$payload" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);process.stdout.write((j.tool_input&&j.tool_input.command)||"")}catch{process.stdout.write("")}})'
-)"
+  printf '%s' "$payload" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);process.stdout.write((j.tool_input&&j.tool_input.command)||"")}catch{process.stdout.write("")}})' 2>/dev/null
+)" || true
+
+# 解析失敗（node 不在・ペイロード形式変更など）に気づけるよう警告を残す。
+# fail-open（通過）は維持しつつ、フックが無言で無効化される事故を防ぐ（stderr はモデルに届く）。
+if [ -z "$command_str" ] && [ -n "$payload" ]; then
+  echo "[pre-commit-quality] ペイロード解析に失敗したため検査をスキップしました（node 不在/形式変更の可能性）" >&2
+fi
 
 # --- 2) git commit 以外は対象外（即通過）-----------------------------------
 #     `git commit` という並びを含むときだけ後続チェックへ進む。
@@ -44,12 +51,14 @@ fi
 # --- 4) backend の型チェック → テストを実行。失敗ならコミットをブロック ------
 cd "$repo_root/backend"
 
-if ! npm run --silent typecheck; then
+# --silent は付けない: 失敗時に tsc/vitest の診断や npm の「スクリプト未定義」
+# エラーを stderr に残し、モデルが原因をトリアージできるようにする。
+if ! npm run typecheck; then
   echo "コミット中止: backend の型チェック(tsc --noEmit)に失敗しました。型エラーを解消してください。" >&2
   exit 2
 fi
 
-if ! npm run --silent test; then
+if ! npm run test; then
   echo "コミット中止: backend テスト(vitest)に失敗しました。失敗テストを修正してください。" >&2
   exit 2
 fi

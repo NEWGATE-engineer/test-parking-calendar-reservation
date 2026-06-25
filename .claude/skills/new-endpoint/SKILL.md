@@ -27,7 +27,7 @@ description: backend に新しい HTTP エンドポイント（または機能�
 5. **router.ts**: `requireAuth` → `asyncHandler(async (req,res)=>{ ... })`。`getUserId(req)` で本人特定。バリデーション→サービス呼び出し→ステータス＆ボディ返却。
 6. **index.ts に配線**: `app.use('/<path>', createXxxRouter(repo))`。
 7. **コメント/TSDoc**: 公開関数・クラス・型に日本語 TSDoc（`@param`/`@returns`/`@throws`）。HTTP/サービス層は投げるエラーを `@throws` に。主要ステップに「何を・なぜ」の行コメント（条件付き UPDATE・TOCTOU 回避・冪等など）。自明な行には書かない。
-8. **テスト**（手本: `backend/test/spots.*.test.ts`、`helpers/mockSpotsRepo.ts`）:
+8. **テスト**（手本: `backend/test/spots.*.test.ts`、`backend/test/helpers/mockSpotsRepo.ts`）:
    - 純粋ロジックがあれば `<pure>.test.ts`（境界値中心）。
    - `<feature>.service.test.ts`: mock repository で分岐（成功・各エラー・競合0件）。
    - `<feature>.http.test.ts`: supertest で 200/401/404/409/422 等。`signAccessToken` で Bearer を用意。

@@ -103,11 +103,11 @@ const judged = await parallel(
   ),
 )
 
-// 採点順に整列（高い順）。致命的欠陥ありは下げる。
+// 合計点が高い順に整列。同点なら致命的欠陥(killer)が少ない案を上位にする。
+// （単一の比較子で表現。2段 sort だと1段目の意図が2段目に上書きされ誤順になりやすい）
 const ranked = judged
   .filter(Boolean)
-  .sort((a, b) => b.killers.length - a.killers.length || 0) // killer 多い案を後ろへ
-  .sort((a, b) => b.total - a.total)
+  .sort((a, b) => b.total - a.total || a.killers.length - b.killers.length)
 
 // ---- Phase 3: 全案＋採点を1エージェントが統合して推奨 ----------------------
 phase('Synthesize')

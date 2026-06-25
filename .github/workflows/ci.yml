@@ -16,9 +16,21 @@ on:
       - 'backend/**'
       - '.github/workflows/ci.yml'
 
+# 最小権限を明示する（pull_request の既定でも read 相当だが、意図を明確にする）。
+# このジョブはコードを読んで検証するだけで、PR への書き込みは一切しない。
+permissions:
+  contents: read
+
+# 同一 PR に連続 push したら古い実行をキャンセルし、runner の重複消費を防ぐ。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # テストがハングしても runner を長時間占有しないよう上限を設ける（既定 6h は長すぎる）。
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend

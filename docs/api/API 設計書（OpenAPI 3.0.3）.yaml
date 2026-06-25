@@ -281,7 +281,13 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: 区画が物理占有中（別予約の超過など）。retryable=false（再試行不可）
+          description: >
+            DOWN 不可。Error.code で区別する：
+            physical_occupancy（区画が物理占有中・別予約の超過など）／
+            invalid_state（reserved 以外、または予約期間外）／
+            command_in_progress（同一 request_id を処理中）／
+            command_failed（同一 request_id が既に失敗・新しい request_id で再試行）。
+            いずれも retryable=false。
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -378,6 +384,7 @@ components:
           description: >
             機械可読の理由コード。例：physical_occupancy / device_unhealthy /
             conflict_overlap / conflict_buffer / not_modifiable / not_cancelable /
+            invalid_state / command_in_progress / command_failed /
             timeout / validation_error / not_found / unauthorized / email_conflict /
             invalid_credentials / account_locked / account_disabled / invalid_token /
             token_reused / internal_error
@@ -481,6 +488,7 @@ components:
       properties:
         request_id:
           type: string
+          maxLength: 100
           description: 冪等キー。送信操作ごとに採番（トランスポート再送は同一キーで吸収）
 
     GateDownResponse:

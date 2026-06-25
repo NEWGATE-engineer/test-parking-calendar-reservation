@@ -25,7 +25,7 @@ export interface ReservationResponse {
   start_time: string;
   /** ISO 8601・UTC。 */
   end_time: string;
-  status: string;
+  status: ReservationStatus;
   /** ISO 8601・UTC。 */
   created_at: string;
   /** 予約枠の見込み額（円）。確定額は Fee（完了時）。 */
@@ -232,7 +232,7 @@ export class ReservationsService {
     spot_id: string;
     start_time: Date;
     end_time: Date;
-    status: string;
+    status: ReservationStatus;
     created_at: Date;
   }): ReservationResponse {
     const estimatedSlotFee = estimateSlotFee(row.start_time, row.end_time, config.reservation);

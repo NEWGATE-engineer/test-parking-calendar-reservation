@@ -12,7 +12,7 @@ import { requireAuth, getUserId } from '../http/requireAuth.js';
 import { withSerializableTx, type TxRunner } from '../db.js';
 
 /**
- * `/reservations` ルーター。予約の作成（認証必須）。
+ * `/reservations` ルーター。予約の一覧・作成・変更・キャンセル（いずれも認証必須）。
  *
  * @module reservations/router
  */
@@ -22,7 +22,7 @@ import { withSerializableTx, type TxRunner } from '../db.js';
  *
  * @param repo 予約データアクセス層（既定: SqlReservationsRepository。テストはモック）
  * @param runTx トランザクションランナー（既定 {@link withSerializableTx}。テストは偽ランナー）
- * @returns `POST /`（作成）を備えた Router
+ * @returns `GET /`（一覧）・`POST /`（作成）・`PUT /:id`（変更）・`DELETE /:id`（キャンセル）を備えた Router
  */
 export function createReservationsRouter(
   repo: ReservationsRepository = new SqlReservationsRepository(),

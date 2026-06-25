@@ -59,7 +59,7 @@ export interface CreatedReservation {
   spot_id: string;
   start_time: Date;
   end_time: Date;
-  status: string;
+  status: ReservationStatus;
   created_at: Date;
 }
 

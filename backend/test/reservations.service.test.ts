@@ -187,6 +187,71 @@ describe('ReservationsService.update', () => {
       new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { end: new Date('2099-06-25T12:00:00Z') }),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'not_modifiable' });
   });
+
+  it('マージ後に start が過去日時なら 422・UPDATE しない', async () => {
+    const repo = makeMockReservationsRepo({ owned: ownedReserved() });
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+        start: new Date('2000-01-01T10:00:00Z'),
+        end: new Date('2000-01-01T11:00:00Z'),
+      }),
+    ).rejects.toMatchObject({ httpStatus: 422, code: 'validation_error' });
+    expect(repo.updateReservation).not.toHaveBeenCalled();
+  });
+
+  it('デバイス不健全なら 409 device_unhealthy・UPDATE しない', async () => {
+    const repo = makeMockReservationsRepo({
+      owned: ownedReserved(),
+      // 1時間前＝健全閾値（仮10分）超過
+      spot: { id: 'spot-1', last_seen_at: new Date(Date.now() - 60 * 60_000) },
+    });
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { end: new Date('2099-06-25T12:00:00Z') }),
+    ).rejects.toMatchObject({ httpStatus: 409, code: 'device_unhealthy' });
+    expect(repo.updateReservation).not.toHaveBeenCalled();
+  });
+
+  it('変更後がバッファ未満で近接すれば 409 conflict_buffer', async () => {
+    const repo = makeMockReservationsRepo({
+      owned: ownedReserved(),
+      spot: { id: 'spot-1', last_seen_at: new Date() },
+      // 12:10–13:00 開始。延長後 10:00–12:00 の直後 10分（バッファ 15分未満）
+      conflicts: [{ start: new Date('2099-06-25T12:10:00Z'), end: new Date('2099-06-25T13:00:00Z') }],
+    });
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { end: new Date('2099-06-25T12:00:00Z') }),
+    ).rejects.toMatchObject({ httpStatus: 409, code: 'conflict_buffer' });
+  });
+
+  it('spot_id のみ変更で 200・新区画で競合チェック＋新区画値で UPDATE', async () => {
+    const repo = makeMockReservationsRepo({
+      owned: ownedReserved(), // spot_id = 'spot-1'
+      spot: { id: 'spot-2', last_seen_at: new Date() },
+    });
+    const res = await new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { spotId: 'spot-2' });
+
+    expect(res.spot_id).toBe('spot-2');
+    // 競合チェックは新区画＋自分除外で呼ぶ
+    expect(repo.findConflictsForSpot).toHaveBeenCalledWith(
+      expect.anything(),
+      'spot-2',
+      expect.any(Date),
+      expect.any(Date),
+      expect.any(Number),
+      'resv-1',
+    );
+    // 条件付き UPDATE にも新区画・据え置きの時刻が渡る
+    expect(repo.updateReservation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        id: 'resv-1',
+        userId: 'user-1',
+        spotId: 'spot-2',
+        start: new Date('2099-06-25T10:00:00Z'),
+        end: new Date('2099-06-25T11:00:00Z'),
+      }),
+    );
+  });
 });
 
 describe('ReservationsService.cancel', () => {

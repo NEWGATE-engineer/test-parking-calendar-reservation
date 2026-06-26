@@ -1,5 +1,5 @@
+import { getPool } from '@parking/core';
 import mssql from 'mssql';
-import { getPool } from '../db.js';
 import type { ReservationStatus } from './repository.js';
 
 /**

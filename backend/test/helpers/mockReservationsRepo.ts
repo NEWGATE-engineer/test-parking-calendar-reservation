@@ -1,5 +1,5 @@
+import type { Tx, TxRunner } from '@parking/core';
 import { vi } from 'vitest';
-import type { Tx, TxRunner } from '../../src/db.js';
 import type {
   CreatedReservation,
   InsertReservationInput,

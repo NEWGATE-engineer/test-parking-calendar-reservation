@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { config } from '@parking/core';
 import jwt from 'jsonwebtoken';
-import { config } from '../config.js';
 
 /**
  * トークンの発行・検証・生成（認証設計§2）。

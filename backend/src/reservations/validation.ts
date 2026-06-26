@@ -1,4 +1,4 @@
-import { validationError } from '../http/errors.js';
+import { validationError } from '@parking/core';
 import { RESERVATION_STATUSES, type ReservationStatus } from './repository.js';
 
 /**

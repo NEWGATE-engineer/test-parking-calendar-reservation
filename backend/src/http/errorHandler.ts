@@ -1,5 +1,5 @@
+import { AppError, type ErrorBody } from '@parking/core';
 import type { ErrorRequestHandler } from 'express';
-import { AppError, type ErrorBody } from './errors.js';
 
 /**
  * 統一エラーハンドラ（Express 5 のエラーミドルウェア）。

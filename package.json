@@ -1,0 +1,27 @@
+{
+  "name": "parking-calendar-reservation",
+  "version": "1.0.0",
+  "description": "駐車場予約システム（仮）— npm workspaces モノレポのルート",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "core",
+    "backend",
+    "functions",
+    "device-sim"
+  ],
+  "scripts": {
+    "build:core": "npm run build -w core",
+    "build": "npm run build -w core && npm run build -w backend && npm run build -w functions",
+    "typecheck": "npm run build -w core && npm run typecheck -w backend",
+    "test": "npm test -w backend",
+    "lint": "biome check --error-on-warnings",
+    "lint:fix": "biome check --write --error-on-warnings"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.1"
+  }
+}

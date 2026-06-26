@@ -1,6 +1,5 @@
+import { closePool, config, getPool } from '@parking/core';
 import { buildApp } from './app.js';
-import { config } from './config.js';
-import { closePool, getPool } from './db.js';
 
 /**
  * アプリのエントリポイント。

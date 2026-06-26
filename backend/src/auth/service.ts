@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { config } from '../config.js';
-import { AppError } from '../http/errors.js';
+import { AppError, config } from '@parking/core';
 import { DUMMY_HASH, hashPassword, verifyPassword } from './passwords.js';
 import { type AuthRepository, type CreateUserInput, DuplicateEmailError } from './repository.js';
 import { generateRefreshToken, sha256, signAccessToken } from './tokens.js';

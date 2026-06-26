@@ -1,6 +1,6 @@
+import { unauthorized } from '@parking/core';
 import type { Request, RequestHandler } from 'express';
 import { verifyAccessToken } from '../auth/tokens.js';
-import { unauthorized } from './errors.js';
 
 /**
  * 認証ミドルウェア。

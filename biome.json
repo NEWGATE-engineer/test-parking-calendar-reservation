@@ -6,7 +6,12 @@
     "useIgnoreFile": false
   },
   "files": {
-    "includes": ["src/**/*.ts", "test/**/*.ts"]
+    "includes": [
+      "core/src/**/*.ts",
+      "backend/src/**/*.ts",
+      "backend/test/**/*.ts",
+      "functions/src/**/*.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

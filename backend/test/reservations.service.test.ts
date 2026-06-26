@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { ReservationsService } from '../src/reservations/service.js';
+import { describe, expect, it } from 'vitest';
 import { AppError } from '../src/http/errors.js';
-import { makeMockReservationsRepo, fakeTxRunner } from './helpers/mockReservationsRepo.js';
-import type { CreateReservationInput, ReservationPatch } from '../src/reservations/validation.js';
 import type { ReservationRow } from '../src/reservations/repository.js';
+import { ReservationsService } from '../src/reservations/service.js';
+import type { CreateReservationInput, ReservationPatch } from '../src/reservations/validation.js';
+import { fakeTxRunner, makeMockReservationsRepo } from './helpers/mockReservationsRepo.js';
 
 /** 希望時間帯 10:00–11:00（UTC）。 */
 const input: CreateReservationInput = {
@@ -47,10 +47,14 @@ describe('ReservationsService.create', () => {
     const repo = makeMockReservationsRepo({
       spot: { id: 'spot-1', last_seen_at: new Date() },
       // 10:30–12:00 が希望窓 10:00–11:00 と重なる
-      conflicts: [{ start: new Date('2026-06-25T10:30:00Z'), end: new Date('2026-06-25T12:00:00Z') }],
+      conflicts: [
+        { start: new Date('2026-06-25T10:30:00Z'), end: new Date('2026-06-25T12:00:00Z') },
+      ],
     });
 
-    await expect(new ReservationsService(repo, fakeTxRunner).create('user-1', input)).rejects.toMatchObject({
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).create('user-1', input),
+    ).rejects.toMatchObject({
       httpStatus: 409,
       code: 'conflict_overlap',
       retryable: false,
@@ -61,10 +65,14 @@ describe('ReservationsService.create', () => {
     const repo = makeMockReservationsRepo({
       spot: { id: 'spot-1', last_seen_at: new Date() },
       // 09:40–09:50 終了。重ならないが開始 10:00 まで 10分（バッファ 15分未満）
-      conflicts: [{ start: new Date('2026-06-25T09:40:00Z'), end: new Date('2026-06-25T09:50:00Z') }],
+      conflicts: [
+        { start: new Date('2026-06-25T09:40:00Z'), end: new Date('2026-06-25T09:50:00Z') },
+      ],
     });
 
-    await expect(new ReservationsService(repo, fakeTxRunner).create('user-1', input)).rejects.toMatchObject({
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).create('user-1', input),
+    ).rejects.toMatchObject({
       httpStatus: 409,
       code: 'conflict_buffer',
     });
@@ -76,7 +84,9 @@ describe('ReservationsService.create', () => {
       spot: { id: 'spot-1', last_seen_at: new Date(Date.now() - 60 * 60_000) },
     });
 
-    await expect(new ReservationsService(repo, fakeTxRunner).create('user-1', input)).rejects.toMatchObject({
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).create('user-1', input),
+    ).rejects.toMatchObject({
       httpStatus: 409,
       code: 'device_unhealthy',
     });
@@ -84,9 +94,9 @@ describe('ReservationsService.create', () => {
 
   it('デバイス未割当（last_seen_at=null）も device_unhealthy', async () => {
     const repo = makeMockReservationsRepo({ spot: { id: 'spot-1', last_seen_at: null } });
-    await expect(new ReservationsService(repo, fakeTxRunner).create('user-1', input)).rejects.toBeInstanceOf(
-      AppError,
-    );
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).create('user-1', input),
+    ).rejects.toBeInstanceOf(AppError);
   });
 });
 
@@ -144,14 +154,18 @@ describe('ReservationsService.update', () => {
   it('存在しない/他人の予約は 404', async () => {
     const repo = makeMockReservationsRepo({ owned: null });
     await expect(
-      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-x', { end: new Date('2099-06-25T12:00:00Z') }),
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-x', {
+        end: new Date('2099-06-25T12:00:00Z'),
+      }),
     ).rejects.toMatchObject({ httpStatus: 404, code: 'not_found' });
   });
 
   it('reserved 以外は 409 not_modifiable・UPDATE しない', async () => {
     const repo = makeMockReservationsRepo({ owned: { ...ownedReserved(), status: 'completed' } });
     await expect(
-      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { end: new Date('2099-06-25T12:00:00Z') }),
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+        end: new Date('2099-06-25T12:00:00Z'),
+      }),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'not_modifiable' });
     expect(repo.updateReservation).not.toHaveBeenCalled();
   });
@@ -170,10 +184,14 @@ describe('ReservationsService.update', () => {
     const repo = makeMockReservationsRepo({
       owned: ownedReserved(),
       spot: { id: 'spot-1', last_seen_at: new Date() },
-      conflicts: [{ start: new Date('2099-06-25T11:30:00Z'), end: new Date('2099-06-25T13:00:00Z') }],
+      conflicts: [
+        { start: new Date('2099-06-25T11:30:00Z'), end: new Date('2099-06-25T13:00:00Z') },
+      ],
     });
     await expect(
-      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { end: new Date('2099-06-25T12:00:00Z') }),
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+        end: new Date('2099-06-25T12:00:00Z'),
+      }),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'conflict_overlap' });
   });
 
@@ -184,7 +202,9 @@ describe('ReservationsService.update', () => {
       updateRows: 0,
     });
     await expect(
-      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { end: new Date('2099-06-25T12:00:00Z') }),
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+        end: new Date('2099-06-25T12:00:00Z'),
+      }),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'not_modifiable' });
   });
 
@@ -206,7 +226,9 @@ describe('ReservationsService.update', () => {
       spot: { id: 'spot-1', last_seen_at: new Date(Date.now() - 60 * 60_000) },
     });
     await expect(
-      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { end: new Date('2099-06-25T12:00:00Z') }),
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+        end: new Date('2099-06-25T12:00:00Z'),
+      }),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'device_unhealthy' });
     expect(repo.updateReservation).not.toHaveBeenCalled();
   });
@@ -216,10 +238,14 @@ describe('ReservationsService.update', () => {
       owned: ownedReserved(),
       spot: { id: 'spot-1', last_seen_at: new Date() },
       // 12:10–13:00 開始。延長後 10:00–12:00 の直後 10分（バッファ 15分未満）
-      conflicts: [{ start: new Date('2099-06-25T12:10:00Z'), end: new Date('2099-06-25T13:00:00Z') }],
+      conflicts: [
+        { start: new Date('2099-06-25T12:10:00Z'), end: new Date('2099-06-25T13:00:00Z') },
+      ],
     });
     await expect(
-      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { end: new Date('2099-06-25T12:00:00Z') }),
+      new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+        end: new Date('2099-06-25T12:00:00Z'),
+      }),
     ).rejects.toMatchObject({ httpStatus: 409, code: 'conflict_buffer' });
   });
 
@@ -228,7 +254,9 @@ describe('ReservationsService.update', () => {
       owned: ownedReserved(), // spot_id = 'spot-1'
       spot: { id: 'spot-2', last_seen_at: new Date() },
     });
-    const res = await new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', { spotId: 'spot-2' });
+    const res = await new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+      spotId: 'spot-2',
+    });
 
     expect(res.spot_id).toBe('spot-2');
     // 競合チェックは新区画＋自分除外で呼ぶ
@@ -268,7 +296,9 @@ describe('ReservationsService.update', () => {
 describe('ReservationsService.cancel', () => {
   it('reserved の予約を取り消せる（1件成功）', async () => {
     const repo = makeMockReservationsRepo({ cancelRows: 1 });
-    await expect(new ReservationsService(repo, fakeTxRunner).cancel('user-1', 'resv-1')).resolves.toBeUndefined();
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).cancel('user-1', 'resv-1'),
+    ).resolves.toBeUndefined();
     expect(repo.cancelReservation).toHaveBeenCalledWith('resv-1', 'user-1');
   });
 
@@ -288,6 +318,8 @@ describe('ReservationsService.cancel', () => {
 
   it('AppError 型で投げる', async () => {
     const repo = makeMockReservationsRepo({ cancelRows: 0, ownedStatus: null });
-    await expect(new ReservationsService(repo, fakeTxRunner).cancel('user-1', 'x')).rejects.toBeInstanceOf(AppError);
+    await expect(
+      new ReservationsService(repo, fakeTxRunner).cancel('user-1', 'x'),
+    ).rejects.toBeInstanceOf(AppError);
   });
 });

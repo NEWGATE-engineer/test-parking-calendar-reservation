@@ -1,9 +1,9 @@
 import express, { type Express } from 'express';
-import { errorHandler } from './http/errorHandler.js';
 import { createAuthRouter } from './auth/router.js';
-import { createSpotsRouter } from './spots/router.js';
-import { createReservationsRouter } from './reservations/router.js';
+import { errorHandler } from './http/errorHandler.js';
 import { createGateDownRouter } from './reservations/gateDown.router.js';
+import { createReservationsRouter } from './reservations/router.js';
+import { createSpotsRouter } from './spots/router.js';
 
 /**
  * Express アプリの組み立て。

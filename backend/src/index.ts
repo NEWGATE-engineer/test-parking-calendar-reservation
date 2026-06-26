@@ -1,6 +1,6 @@
-import { config } from './config.js';
 import { buildApp } from './app.js';
-import { getPool, closePool } from './db.js';
+import { config } from './config.js';
+import { closePool, getPool } from './db.js';
 
 /**
  * アプリのエントリポイント。

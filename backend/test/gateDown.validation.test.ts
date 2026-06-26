@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { parseGateDownBody } from '../src/reservations/gateDown.validation.js';
+import { describe, expect, it } from 'vitest';
 import { AppError } from '../src/http/errors.js';
+import { parseGateDownBody } from '../src/reservations/gateDown.validation.js';
 
 function expect422(body: unknown): void {
   try {

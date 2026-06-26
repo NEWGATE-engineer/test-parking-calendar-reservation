@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { AppError } from '../http/errors.js';
-import { hashPassword, verifyPassword, DUMMY_HASH } from './passwords.js';
-import { signAccessToken, generateRefreshToken, sha256 } from './tokens.js';
-import { type AuthRepository, DuplicateEmailError, type CreateUserInput } from './repository.js';
-import type { RegisterInput, LoginInput } from './validation.js';
+import { DUMMY_HASH, hashPassword, verifyPassword } from './passwords.js';
+import { type AuthRepository, type CreateUserInput, DuplicateEmailError } from './repository.js';
+import { generateRefreshToken, sha256, signAccessToken } from './tokens.js';
+import type { LoginInput, RegisterInput } from './validation.js';
 
 /**
  * 認証ユースケース（会員登録・ログイン）。
@@ -41,7 +41,10 @@ export class AuthService {
    * @param familyId 系統 ID（省略時は新規採番＝ログイン/登録の起点）
    * @returns クライアントへ返す {@link TokenResponse}
    */
-  private async issueTokens(userId: string, familyId: string = randomUUID()): Promise<TokenResponse> {
+  private async issueTokens(
+    userId: string,
+    familyId: string = randomUUID(),
+  ): Promise<TokenResponse> {
     const refresh = generateRefreshToken();
     const expiresAt = new Date(Date.now() + config.jwt.refreshTtlSec * 1000);
     // 保存するのはハッシュのみ。family_id はログイン/登録で新規、refresh では引き継ぐ
@@ -112,14 +115,23 @@ export class AuthService {
 
     // ② アカウントロック中（F1-5）。lock_until が未来なら拒否
     if (user.lock_until !== null && user.lock_until.getTime() > Date.now()) {
-      throw new AppError(429, 'account_locked', 'ログイン試行が多すぎます。しばらくしてからお試しください', true);
+      throw new AppError(
+        429,
+        'account_locked',
+        'ログイン試行が多すぎます。しばらくしてからお試しください',
+        true,
+      );
     }
 
     // ③ パスワード照合
     const ok = await verifyPassword(input.password, user.password_hash);
     if (!ok) {
       // ④a 失敗を記録（閾値到達で自動ロック）。同一メッセージで列挙を防ぐ
-      await this.repo.recordLoginFailure(user.id, config.login.maxFailedAttempts, config.login.lockMinutes);
+      await this.repo.recordLoginFailure(
+        user.id,
+        config.login.maxFailedAttempts,
+        config.login.lockMinutes,
+      );
       throw new AppError(401, 'invalid_credentials', 'メールアドレスまたはパスワードが違います');
     }
 
@@ -160,7 +172,11 @@ export class AuthService {
     // ② 既に失効済みトークンの再使用 = 盗難・複製の兆候。系統(family)を全失効して締め出す
     if (row.revoked_at !== null) {
       await this.repo.revokeFamily(row.family_id);
-      throw new AppError(401, 'token_reused', 'リフレッシュトークンが再使用されました。再ログインしてください');
+      throw new AppError(
+        401,
+        'token_reused',
+        'リフレッシュトークンが再使用されました。再ログインしてください',
+      );
     }
 
     // ③ 期限切れ
@@ -173,7 +189,11 @@ export class AuthService {
     if (!won) {
       // 読み取りから更新までの間に他者が失効済み = 並行した再使用。系統を全失効
       await this.repo.revokeFamily(row.family_id);
-      throw new AppError(401, 'token_reused', 'リフレッシュトークンが再使用されました。再ログインしてください');
+      throw new AppError(
+        401,
+        'token_reused',
+        'リフレッシュトークンが再使用されました。再ログインしてください',
+      );
     }
     return this.issueTokens(row.user_id, row.family_id);
   }

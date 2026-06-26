@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { GateDownContext } from '../src/reservations/commandLog.repository.js';
 import { GateDownService } from '../src/reservations/gateDown.service.js';
 import {
   makeMockCommandLogRepo,
   mockDevicePortOk,
   mockDevicePortTimeout,
 } from './helpers/mockGateDown.js';
-import type { GateDownContext } from '../src/reservations/commandLog.repository.js';
 
 const RID = 'req-1';
 
@@ -168,7 +168,11 @@ describe('GateDownService.execute', () => {
       repo.findCommandByRequestId = async () =>
         call++ === 0 ? null : { id: 'cmd-orig', result: 'success' };
 
-      const res = await new GateDownService(repo, mockDevicePortOk()).execute('user-1', 'resv-1', RID);
+      const res = await new GateDownService(repo, mockDevicePortOk()).execute(
+        'user-1',
+        'resv-1',
+        RID,
+      );
       expect(res).toEqual({ result: 'down', command_id: 'cmd-orig' });
     });
   });

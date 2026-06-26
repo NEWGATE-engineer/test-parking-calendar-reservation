@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { AuthService } from '../src/auth/service.js';
+import { describe, expect, it } from 'vitest';
 import { hashPassword } from '../src/auth/passwords.js';
+import type { UserRow } from '../src/auth/repository.js';
+import { AuthService } from '../src/auth/service.js';
 import { verifyAccessToken } from '../src/auth/tokens.js';
 import { makeMockRepo } from './helpers/mockRepo.js';
-import type { UserRow } from '../src/auth/repository.js';
 
 async function seededUser(password = '12345678'): Promise<UserRow> {
   return {
@@ -98,7 +98,12 @@ describe('AuthService register → login 一連フロー', () => {
   it('登録したユーザーでログインでき、access の sub が一致、refresh は2回保存される', async () => {
     const repo = makeMockRepo();
     const svc = new AuthService(repo);
-    const reg = await svc.register({ email: 'a@b.com', password: '12345678', name: null, termsVersion: 'x' });
+    const reg = await svc.register({
+      email: 'a@b.com',
+      password: '12345678',
+      name: null,
+      termsVersion: 'x',
+    });
     const login = await svc.login({ email: 'a@b.com', password: '12345678' });
 
     const regUserId = verifyAccessToken(reg.access_token).sub;

@@ -1,9 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { SpotWithDevice } from '../src/spots/repository.js';
 import { SpotsService } from '../src/spots/service.js';
 import { makeMockSpotsRepo } from './helpers/mockSpotsRepo.js';
-import type { SpotWithDevice } from '../src/spots/repository.js';
 
-function spot(id: string, occupancy: 'occupied' | 'vacant', lastSeenAt: Date | null): SpotWithDevice {
+function spot(
+  id: string,
+  occupancy: 'occupied' | 'vacant',
+  lastSeenAt: Date | null,
+): SpotWithDevice {
   return { id, name: `spot-${id}`, occupancy, last_seen_at: lastSeenAt };
 }
 
@@ -41,7 +45,13 @@ describe('SpotsService.getAvailability', () => {
   it('重複予約がある区画は reserved', async () => {
     const repo = makeMockSpotsRepo(
       [spot('1', 'vacant', new Date())],
-      [{ spot_id: '1', start_time: new Date('2026-06-24T10:30:00Z'), end_time: new Date('2026-06-24T12:00:00Z') }],
+      [
+        {
+          spot_id: '1',
+          start_time: new Date('2026-06-24T10:30:00Z'),
+          end_time: new Date('2026-06-24T12:00:00Z'),
+        },
+      ],
     );
     const [a] = await new SpotsService(repo).getAvailability(start, end);
     expect(a).toMatchObject({ spot_id: '1', available: false, reason: 'reserved' });
@@ -57,7 +67,13 @@ describe('SpotsService.getAvailability', () => {
     const repo = makeMockSpotsRepo(
       [spot('A', 'vacant', new Date()), spot('B', 'vacant', new Date())],
       // spot A のみ重複予約あり、B には無し
-      [{ spot_id: 'A', start_time: new Date('2026-06-24T10:30:00Z'), end_time: new Date('2026-06-24T12:00:00Z') }],
+      [
+        {
+          spot_id: 'A',
+          start_time: new Date('2026-06-24T10:30:00Z'),
+          end_time: new Date('2026-06-24T12:00:00Z'),
+        },
+      ],
     );
     const results = await new SpotsService(repo).getAvailability(start, end);
     const a = results.find((r) => r.spot_id === 'A');

@@ -29,7 +29,11 @@ export interface TimeWindow {
  * @param now 現在時刻（テスト容易性のため引数で受ける）
  * @returns 健全なら `true`。`null` や閾値超過は `false`
  */
-export function isDeviceHealthy(lastSeenAt: Date | null, thresholdMinutes: number, now: Date): boolean {
+export function isDeviceHealthy(
+  lastSeenAt: Date | null,
+  thresholdMinutes: number,
+  now: Date,
+): boolean {
   if (lastSeenAt === null) return false;
   return lastSeenAt.getTime() >= now.getTime() - thresholdMinutes * 60_000;
 }

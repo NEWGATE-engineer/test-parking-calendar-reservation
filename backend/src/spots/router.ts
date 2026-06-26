@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { SpotsService } from './service.js';
-import { SqlSpotsRepository, type SpotsRepository } from './repository.js';
-import { parseAvailabilityQuery } from './validation.js';
 import { asyncHandler } from '../http/asyncHandler.js';
 import { requireAuth } from '../http/requireAuth.js';
+import { type SpotsRepository, SqlSpotsRepository } from './repository.js';
+import { SpotsService } from './service.js';
+import { parseAvailabilityQuery } from './validation.js';
 
 /**
  * `/spots` ルーター。区画一覧と予約可否（いずれも認証必須・読み取り専用）。

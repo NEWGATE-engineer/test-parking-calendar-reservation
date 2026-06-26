@@ -37,6 +37,7 @@ export function parseAvailabilityQuery(query: unknown): AvailabilityQuery {
   const end = parseDate(q['end']);
   if (start === undefined) throw validationError('start は ISO 日時で指定してください');
   if (end === undefined) throw validationError('end は ISO 日時で指定してください');
-  if (end.getTime() <= start.getTime()) throw validationError('end は start より後である必要があります');
+  if (end.getTime() <= start.getTime())
+    throw validationError('end は start より後である必要があります');
   return { start, end };
 }

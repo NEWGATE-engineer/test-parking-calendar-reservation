@@ -206,7 +206,11 @@ export class SqlAuthRepository implements AuthRepository {
   }
 
   /** @inheritDoc */
-  async recordLoginFailure(userId: string, maxFailedAttempts: number, lockMinutes: number): Promise<void> {
+  async recordLoginFailure(
+    userId: string,
+    maxFailedAttempts: number,
+    lockMinutes: number,
+  ): Promise<void> {
     const pool = await getPool();
     // 失敗数+1 と「閾値到達ならロック時刻設定」を1文で原子的に行う（読み取り→書き込みの競合を避ける）。
     // 無効アカウント（status<>'active'）はカウントしない（CLAUDE.md: 現在状態を WHERE に含める）。

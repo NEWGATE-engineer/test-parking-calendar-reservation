@@ -1,9 +1,6 @@
 import { config } from '../config.js';
-import {
-  type SpotsRepository,
-  type ReservationWindow,
-} from './repository.js';
-import { availabilityForSpot, isDeviceHealthy, type AvailabilityReason } from './availability.js';
+import { type AvailabilityReason, availabilityForSpot, isDeviceHealthy } from './availability.js';
+import type { ReservationWindow, SpotsRepository } from './repository.js';
 
 /**
  * 区画・満空・予約可否のユースケース。
@@ -84,7 +81,10 @@ export class SpotsService {
 
     return spots.map((s) => {
       const healthy = isDeviceHealthy(s.last_seen_at, threshold, now);
-      const spotConflicts = (bySpot.get(s.id) ?? []).map((c) => ({ start: c.start_time, end: c.end_time }));
+      const spotConflicts = (bySpot.get(s.id) ?? []).map((c) => ({
+        start: c.start_time,
+        end: c.end_time,
+      }));
       const { available, reason } = availabilityForSpot({
         deviceHealthy: healthy,
         window: { start, end },

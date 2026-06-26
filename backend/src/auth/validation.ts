@@ -63,11 +63,13 @@ export function parseRegister(body: unknown): RegisterInput {
   const termsVersion = asString(b['terms_version']);
   const name = asString(b['name']) ?? null; // 任意項目。未指定は null
 
-  if (email === undefined || !EMAIL_RE.test(email)) throw validationError('メールアドレスが不正です');
+  if (email === undefined || !EMAIL_RE.test(email))
+    throw validationError('メールアドレスが不正です');
   if (password === undefined || password.length < PASSWORD_MIN) {
     throw validationError(`パスワードは${String(PASSWORD_MIN)}文字以上が必要です`);
   }
-  if (termsVersion === undefined || termsVersion === '') throw validationError('terms_version が必要です');
+  if (termsVersion === undefined || termsVersion === '')
+    throw validationError('terms_version が必要です');
   return { email, password, name, termsVersion };
 }
 
@@ -102,9 +104,11 @@ export function parseRefreshToken(body: unknown): RefreshTokenBody {
   if (typeof body !== 'object' || body === null) throw validationError('リクエスト本文が不正です');
   const b = body as Record<string, unknown>; // 他の parse 関数と書き方をそろえる
   const refreshToken = asString(b['refresh_token']);
-  if (refreshToken === undefined || refreshToken === '') throw validationError('refresh_token が必要です');
+  if (refreshToken === undefined || refreshToken === '')
+    throw validationError('refresh_token が必要です');
   // 多層防御: 正規トークンは base64url 43文字固定。極端に長い入力は早期に弾く
   // （express.json の 100KB 制限に依存しない上限長チェック）。
-  if (refreshToken.length > REFRESH_TOKEN_MAX_LEN) throw validationError('refresh_token が不正です');
+  if (refreshToken.length > REFRESH_TOKEN_MAX_LEN)
+    throw validationError('refresh_token が不正です');
   return { refreshToken };
 }

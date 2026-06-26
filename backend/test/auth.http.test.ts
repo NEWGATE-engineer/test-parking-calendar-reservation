@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
 import express from 'express';
 import request from 'supertest';
+import { describe, expect, it } from 'vitest';
+import { hashPassword } from '../src/auth/passwords.js';
+import type { AuthRepository, UserRow } from '../src/auth/repository.js';
 import { createAuthRouter } from '../src/auth/router.js';
 import { errorHandler } from '../src/http/errorHandler.js';
 import { makeMockRepo } from './helpers/mockRepo.js';
-import { hashPassword } from '../src/auth/passwords.js';
-import type { AuthRepository, UserRow } from '../src/auth/repository.js';
 
 async function seededUser(password = '12345678'): Promise<UserRow> {
   return {
@@ -87,7 +87,9 @@ describe('POST /auth/refresh', () => {
     const reg = await request(app)
       .post('/auth/register')
       .send({ email: 'a@b.com', password: '12345678', terms_version: 'x' });
-    const res = await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
+    const res = await request(app)
+      .post('/auth/refresh')
+      .send({ refresh_token: reg.body.refresh_token });
     expect(res.status).toBe(200);
     expect(res.body.access_token).toBeTruthy();
     expect(res.body.refresh_token).not.toBe(reg.body.refresh_token);
@@ -105,7 +107,9 @@ describe('POST /auth/refresh', () => {
       .post('/auth/register')
       .send({ email: 'a@b.com', password: '12345678', terms_version: 'x' });
     await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
-    const reuse = await request(app).post('/auth/refresh').send({ refresh_token: reg.body.refresh_token });
+    const reuse = await request(app)
+      .post('/auth/refresh')
+      .send({ refresh_token: reg.body.refresh_token });
     expect(reuse.status).toBe(401);
     expect(reuse.body.code).toBe('token_reused'); // invalid_token と区別される
   });

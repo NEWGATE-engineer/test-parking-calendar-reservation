@@ -29,9 +29,7 @@ export interface GateDownContext {
 export type CommandResult = 'pending' | 'success' | 'failure';
 
 /** {@link CommandLogRepository.insertPendingCommand} の戻り値。 */
-export type InsertPendingResult =
-  | { inserted: true; commandId: string }
-  | { inserted: false };
+export type InsertPendingResult = { inserted: true; commandId: string } | { inserted: false };
 
 /** gate-down データアクセスの抽象（テストではモックに差し替え）。 */
 export interface CommandLogRepository {
@@ -87,7 +85,10 @@ function isUniqueViolation(err: unknown): boolean {
 /** mssql による {@link CommandLogRepository} 実装。 */
 export class SqlCommandLogRepository implements CommandLogRepository {
   /** @inheritDoc */
-  async findGateDownContext(reservationId: string, userId: string): Promise<GateDownContext | null> {
+  async findGateDownContext(
+    reservationId: string,
+    userId: string,
+  ): Promise<GateDownContext | null> {
     const pool = await getPool();
     // デバイス未割当でも予約行は返せるよう LEFT JOIN（device_id/last_seen_at は null になり得る）。
     const result = await pool

@@ -1,7 +1,7 @@
 name: CI (backend)
 
-# backend のソース/テスト/ビルド設定を変更した PR で、型チェック(tsc --noEmit)と
-# テスト(vitest)を回す（リグレッション検知）。
+# backend のソース/テスト/ビルド設定を変更した PR で、型チェック(tsc --noEmit)・
+# lint/format(biome)・テスト(vitest)を回す（リグレッション検知）。
 #
 # 位置づけ: これは @claude /review-pr（LLM レビュー・手動起動）とは独立した、
 # 「誰の commit でも・LLM 判断に依らず・自動で」効く決定論的な品質ゲート。
@@ -53,6 +53,12 @@ jobs:
 
       - name: Type check (tsc --noEmit)
         run: npm run typecheck
+
+      # Lint/format チェック(Biome)。commit 前 Hook / PostToolUse Hook は Claude の編集しか
+      # 捕まえないため、人間/IDE 経由の変更も含めて誰の commit でも lint を強制する土台。
+      # warning(未使用変数など)も --error-on-warnings で赤にする。
+      - name: Lint (biome)
+        run: npm run lint
 
       - name: Test (vitest)
         run: npm test

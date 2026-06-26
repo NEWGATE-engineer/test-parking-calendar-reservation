@@ -28,6 +28,10 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   const dbError = name === 'ConnectionError' || name === 'RequestError';
   const message = dbError ? '[db error - message redacted]' : rawMessage;
   console.error(`unhandled error: ${name}: ${message}`);
-  const body: ErrorBody = { code: 'internal_error', message: '内部エラーが発生しました', retryable: false };
+  const body: ErrorBody = {
+    code: 'internal_error',
+    message: '内部エラーが発生しました',
+    retryable: false,
+  };
   res.status(500).json(body);
 };

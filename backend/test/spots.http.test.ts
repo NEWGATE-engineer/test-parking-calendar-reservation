@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createSpotsRouter } from '../src/spots/router.js';
-import { errorHandler } from '../src/http/errorHandler.js';
+import { describe, expect, it } from 'vitest';
 import { signAccessToken } from '../src/auth/tokens.js';
-import { makeMockSpotsRepo } from './helpers/mockSpotsRepo.js';
+import { errorHandler } from '../src/http/errorHandler.js';
 import type { SpotsRepository } from '../src/spots/repository.js';
+import { createSpotsRouter } from '../src/spots/router.js';
+import { makeMockSpotsRepo } from './helpers/mockSpotsRepo.js';
 
 function buildApp(repo: SpotsRepository): express.Express {
   const app = express();
@@ -25,7 +25,9 @@ describe('GET /spots', () => {
   });
 
   it('認証ありで 200・配列を返す', async () => {
-    const repo = makeMockSpotsRepo([{ id: '1', name: 'A', occupancy: 'vacant', last_seen_at: new Date() }]);
+    const repo = makeMockSpotsRepo([
+      { id: '1', name: 'A', occupancy: 'vacant', last_seen_at: new Date() },
+    ]);
     const res = await request(buildApp(repo)).get('/spots').set('authorization', auth);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -43,7 +45,9 @@ describe('GET /spots/availability', () => {
   });
 
   it('認証ありで 200', async () => {
-    const repo = makeMockSpotsRepo([{ id: '1', name: 'A', occupancy: 'vacant', last_seen_at: new Date() }]);
+    const repo = makeMockSpotsRepo([
+      { id: '1', name: 'A', occupancy: 'vacant', last_seen_at: new Date() },
+    ]);
     const res = await request(buildApp(repo))
       .get('/spots/availability')
       .query({ start: '2026-06-24T10:00:00Z', end: '2026-06-24T11:00:00Z' })

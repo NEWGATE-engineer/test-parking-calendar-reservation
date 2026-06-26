@@ -1,6 +1,11 @@
-import { describe, it, expect } from 'vitest';
 import jwt from 'jsonwebtoken';
-import { signAccessToken, verifyAccessToken, generateRefreshToken, sha256 } from '../src/auth/tokens.js';
+import { describe, expect, it } from 'vitest';
+import {
+  generateRefreshToken,
+  sha256,
+  signAccessToken,
+  verifyAccessToken,
+} from '../src/auth/tokens.js';
 
 const secret = process.env['JWT_SECRET'] as string;
 

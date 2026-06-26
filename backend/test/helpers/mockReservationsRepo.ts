@@ -1,14 +1,14 @@
 import { vi } from 'vitest';
 import type { Tx, TxRunner } from '../../src/db.js';
-import type { TimeWindow } from '../../src/spots/availability.js';
 import type {
-  ReservationsRepository,
-  SpotForReservation,
   CreatedReservation,
   InsertReservationInput,
   ReservationRow,
   ReservationStatus,
+  ReservationsRepository,
+  SpotForReservation,
 } from '../../src/reservations/repository.js';
+import type { TimeWindow } from '../../src/spots/availability.js';
 
 /**
  * 偽のトランザクションランナー。実 DB を張らず、コールバックを即実行するだけ。
@@ -60,9 +60,7 @@ export function makeMockReservationsRepo(
     findSpotWithDevice: vi.fn(
       (_tx: Tx, _spotId: string): Promise<SpotForReservation | null> => Promise.resolve(spot),
     ),
-    findConflictsForSpot: vi.fn(
-      (): Promise<TimeWindow[]> => Promise.resolve(conflicts),
-    ),
+    findConflictsForSpot: vi.fn((): Promise<TimeWindow[]> => Promise.resolve(conflicts)),
     insertReservation: vi.fn(
       (_tx: Tx, input: InsertReservationInput): Promise<CreatedReservation> =>
         Promise.resolve(buildCreated(input)),
@@ -77,9 +75,7 @@ export function makeMockReservationsRepo(
     ),
     updateReservation: vi.fn((): Promise<number> => Promise.resolve(updateRows)),
     cancelReservation: vi.fn((): Promise<number> => Promise.resolve(cancelRows)),
-    findOwnedStatus: vi.fn(
-      (): Promise<ReservationStatus | null> => Promise.resolve(ownedStatus),
-    ),
+    findOwnedStatus: vi.fn((): Promise<ReservationStatus | null> => Promise.resolve(ownedStatus)),
   };
 }
 

@@ -1,8 +1,8 @@
 import { vi } from 'vitest';
 import type {
+  ReservationWindow,
   SpotsRepository,
   SpotWithDevice,
-  ReservationWindow,
 } from '../../src/spots/repository.js';
 
 /**
@@ -17,6 +17,8 @@ export function makeMockSpotsRepo(
 ): SpotsRepository {
   return {
     listSpotsWithDevice: vi.fn((): Promise<SpotWithDevice[]> => Promise.resolve(spots)),
-    findActiveReservationsInWindow: vi.fn((): Promise<ReservationWindow[]> => Promise.resolve(conflicts)),
+    findActiveReservationsInWindow: vi.fn(
+      (): Promise<ReservationWindow[]> => Promise.resolve(conflicts),
+    ),
   };
 }

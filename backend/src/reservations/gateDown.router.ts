@@ -1,11 +1,11 @@
 import { Router } from 'express';
+import { asyncHandler } from '../http/asyncHandler.js';
+import { getUserId, requireAuth } from '../http/requireAuth.js';
+import { type CommandLogRepository, SqlCommandLogRepository } from './commandLog.repository.js';
+import { type DeviceCommandPort, notConfiguredDeviceCommandPort } from './deviceCommandPort.js';
 import { GateDownService } from './gateDown.service.js';
-import { SqlCommandLogRepository, type CommandLogRepository } from './commandLog.repository.js';
-import { notConfiguredDeviceCommandPort, type DeviceCommandPort } from './deviceCommandPort.js';
 import { parseGateDownBody } from './gateDown.validation.js';
 import { parseReservationId } from './validation.js';
-import { asyncHandler } from '../http/asyncHandler.js';
-import { requireAuth, getUserId } from '../http/requireAuth.js';
 
 /**
  * `/reservations/:id/gate-down` ルーター（DOWN 指示・入庫）。

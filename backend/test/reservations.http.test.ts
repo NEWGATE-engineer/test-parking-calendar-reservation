@@ -1,10 +1,14 @@
-import { describe, it, expect } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createReservationsRouter } from '../src/reservations/router.js';
-import { errorHandler } from '../src/http/errorHandler.js';
+import { describe, expect, it } from 'vitest';
 import { signAccessToken } from '../src/auth/tokens.js';
-import { makeMockReservationsRepo, fakeTxRunner, type MockReservationsRepoOptions } from './helpers/mockReservationsRepo.js';
+import { errorHandler } from '../src/http/errorHandler.js';
+import { createReservationsRouter } from '../src/reservations/router.js';
+import {
+  fakeTxRunner,
+  type MockReservationsRepoOptions,
+  makeMockReservationsRepo,
+} from './helpers/mockReservationsRepo.js';
 
 function buildApp(repoOptions: MockReservationsRepoOptions = {}): express.Express {
   const repo = makeMockReservationsRepo(repoOptions);
@@ -41,7 +45,11 @@ describe('POST /reservations', () => {
       .set('authorization', auth)
       .send(validBody());
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ spot_id: SPOT_ID, status: 'reserved', estimated_slot_fee: 200 });
+    expect(res.body).toMatchObject({
+      spot_id: SPOT_ID,
+      status: 'reserved',
+      estimated_slot_fee: 200,
+    });
   });
 
   it('区画が存在しなければ 404 not_found', async () => {
@@ -57,7 +65,9 @@ describe('POST /reservations', () => {
     const res = await request(
       buildApp({
         spot: { id: SPOT_ID, last_seen_at: new Date() },
-        conflicts: [{ start: new Date('2099-06-25T10:30:00Z'), end: new Date('2099-06-25T12:00:00Z') }],
+        conflicts: [
+          { start: new Date('2099-06-25T10:30:00Z'), end: new Date('2099-06-25T12:00:00Z') },
+        ],
       }),
     )
       .post('/reservations')
@@ -72,7 +82,9 @@ describe('POST /reservations', () => {
       buildApp({
         spot: { id: SPOT_ID, last_seen_at: new Date() },
         // 希望 10:00–11:00 の直後 11:05 開始（重ならないがバッファ 15分未満）
-        conflicts: [{ start: new Date('2099-06-25T11:05:00Z'), end: new Date('2099-06-25T12:00:00Z') }],
+        conflicts: [
+          { start: new Date('2099-06-25T11:05:00Z'), end: new Date('2099-06-25T12:00:00Z') },
+        ],
       }),
     )
       .post('/reservations')
@@ -101,26 +113,29 @@ describe('POST /reservations', () => {
   });
 
   it('end <= start は 422', async () => {
-    const res = await request(buildApp())
-      .post('/reservations')
-      .set('authorization', auth)
-      .send({ spot_id: SPOT_ID, start_time: '2099-06-25T11:00:00Z', end_time: '2099-06-25T10:00:00Z' });
+    const res = await request(buildApp()).post('/reservations').set('authorization', auth).send({
+      spot_id: SPOT_ID,
+      start_time: '2099-06-25T11:00:00Z',
+      end_time: '2099-06-25T10:00:00Z',
+    });
     expect(res.status).toBe(422);
   });
 
   it('end == start（ゼロ幅）は 422', async () => {
-    const res = await request(buildApp())
-      .post('/reservations')
-      .set('authorization', auth)
-      .send({ spot_id: SPOT_ID, start_time: '2099-06-25T10:00:00Z', end_time: '2099-06-25T10:00:00Z' });
+    const res = await request(buildApp()).post('/reservations').set('authorization', auth).send({
+      spot_id: SPOT_ID,
+      start_time: '2099-06-25T10:00:00Z',
+      end_time: '2099-06-25T10:00:00Z',
+    });
     expect(res.status).toBe(422);
   });
 
   it('過去開始は 422', async () => {
-    const res = await request(buildApp())
-      .post('/reservations')
-      .set('authorization', auth)
-      .send({ spot_id: SPOT_ID, start_time: '2000-01-01T10:00:00Z', end_time: '2000-01-01T11:00:00Z' });
+    const res = await request(buildApp()).post('/reservations').set('authorization', auth).send({
+      spot_id: SPOT_ID,
+      start_time: '2000-01-01T10:00:00Z',
+      end_time: '2000-01-01T11:00:00Z',
+    });
     expect(res.status).toBe(422);
   });
 });
@@ -180,7 +195,9 @@ describe('PUT /reservations/:id', () => {
   }
 
   it('Bearer 無しは 401', async () => {
-    const res = await request(appWithReserved()).put(`/reservations/${RESV_ID}`).send({ end_time: '2099-06-25T12:00:00Z' });
+    const res = await request(appWithReserved())
+      .put(`/reservations/${RESV_ID}`)
+      .send({ end_time: '2099-06-25T12:00:00Z' });
     expect(res.status).toBe(401);
   });
 
@@ -222,7 +239,10 @@ describe('PUT /reservations/:id', () => {
   });
 
   it('更新項目が空は 422', async () => {
-    const res = await request(appWithReserved()).put(`/reservations/${RESV_ID}`).set('authorization', auth).send({});
+    const res = await request(appWithReserved())
+      .put(`/reservations/${RESV_ID}`)
+      .set('authorization', auth)
+      .send({});
     expect(res.status).toBe(422);
   });
 

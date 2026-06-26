@@ -35,7 +35,11 @@ export interface SpotsRepository {
    * @param end 希望終了（UTC）
    * @param bufferMinutes バッファ B（分）
    */
-  findActiveReservationsInWindow(start: Date, end: Date, bufferMinutes: number): Promise<ReservationWindow[]>;
+  findActiveReservationsInWindow(
+    start: Date,
+    end: Date,
+    bufferMinutes: number,
+  ): Promise<ReservationWindow[]>;
 }
 
 /** mssql による {@link SpotsRepository} 実装。 */

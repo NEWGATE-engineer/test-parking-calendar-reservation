@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { AppError } from '../src/http/errors.js';
 import {
   parseCreateReservationBody,
-  parseUpdateReservationBody,
   parseListQuery,
   parseReservationId,
+  parseUpdateReservationBody,
 } from '../src/reservations/validation.js';
-import { AppError } from '../src/http/errors.js';
 
 /** 過去日時判定の基準（固定）。これより後の時刻を「未来」とみなす。 */
 const NOW = new Date('2026-06-25T00:00:00Z');
@@ -78,10 +78,18 @@ describe('parseCreateReservationBody', () => {
 
   describe('時間帯の不変条件', () => {
     it('end == start（ゼロ幅）は 422', () => {
-      expect422({ ...base(), start_time: '2026-06-25T10:00:00Z', end_time: '2026-06-25T10:00:00Z' });
+      expect422({
+        ...base(),
+        start_time: '2026-06-25T10:00:00Z',
+        end_time: '2026-06-25T10:00:00Z',
+      });
     });
     it('end < start（逆転）は 422', () => {
-      expect422({ ...base(), start_time: '2026-06-25T11:00:00Z', end_time: '2026-06-25T10:00:00Z' });
+      expect422({
+        ...base(),
+        start_time: '2026-06-25T11:00:00Z',
+        end_time: '2026-06-25T10:00:00Z',
+      });
     });
     it('過去開始は 422', () => {
       expect422({

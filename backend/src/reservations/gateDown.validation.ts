@@ -23,10 +23,9 @@ const REQUEST_ID_MAX = 100;
  * @throws {AppError} 422 `validation_error` — request_id が欠落・非文字列・空・長すぎる
  */
 export function parseGateDownBody(body: unknown): GateDownInput {
-  const b = (typeof body === 'object' && body !== null && !Array.isArray(body) ? body : {}) as Record<
-    string,
-    unknown
-  >;
+  const b = (
+    typeof body === 'object' && body !== null && !Array.isArray(body) ? body : {}
+  ) as Record<string, unknown>;
   const requestId = b['request_id'];
   if (typeof requestId !== 'string' || requestId === '') {
     throw validationError('request_id は必須の文字列です');

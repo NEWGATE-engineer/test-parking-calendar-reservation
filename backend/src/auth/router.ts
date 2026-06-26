@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { AuthService } from './service.js';
-import { SqlAuthRepository, type AuthRepository } from './repository.js';
-import { parseRegister, parseLogin, parseRefreshToken } from './validation.js';
 import { asyncHandler } from '../http/asyncHandler.js';
-import { requireAuth, getUserId } from '../http/requireAuth.js';
+import { getUserId, requireAuth } from '../http/requireAuth.js';
+import { type AuthRepository, SqlAuthRepository } from './repository.js';
+import { AuthService } from './service.js';
+import { parseLogin, parseRefreshToken, parseRegister } from './validation.js';
 
 /**
  * `/auth` ルーター。会員登録・ログイン・トークン更新・ログアウトの HTTP 入口。

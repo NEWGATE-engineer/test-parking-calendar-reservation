@@ -1,11 +1,14 @@
 import { vi } from 'vitest';
 import type {
   CommandLogRepository,
-  GateDownContext,
   CommandResult,
+  GateDownContext,
   InsertPendingResult,
 } from '../../src/reservations/commandLog.repository.js';
-import type { DeviceCommandPort, DeviceCommandResult } from '../../src/reservations/deviceCommandPort.js';
+import type {
+  DeviceCommandPort,
+  DeviceCommandResult,
+} from '../../src/reservations/deviceCommandPort.js';
 
 /** {@link makeMockCommandLogRepo} の挙動を指定するオプション。 */
 export interface MockCommandLogOptions {
@@ -42,9 +45,7 @@ export function makeMockCommandLogRepo(options: MockCommandLogOptions = {}): Com
   const existing = options.existing ?? null;
 
   return {
-    findGateDownContext: vi.fn(
-      (): Promise<GateDownContext | null> => Promise.resolve(context),
-    ),
+    findGateDownContext: vi.fn((): Promise<GateDownContext | null> => Promise.resolve(context)),
     insertPendingCommand: vi.fn((): Promise<InsertPendingResult> => Promise.resolve(insert)),
     findCommandByRequestId: vi.fn(
       (): Promise<{ id: string; result: CommandResult } | null> => Promise.resolve(existing),
@@ -61,6 +62,8 @@ export function mockDevicePortOk(): DeviceCommandPort {
 /** DOWN タイムアウトを返す DeviceCommandPort モック。 */
 export function mockDevicePortTimeout(): DeviceCommandPort {
   return {
-    sendDown: vi.fn((): Promise<DeviceCommandResult> => Promise.resolve({ ok: false, reason: 'timeout' })),
+    sendDown: vi.fn(
+      (): Promise<DeviceCommandResult> => Promise.resolve({ ok: false, reason: 'timeout' }),
+    ),
   };
 }

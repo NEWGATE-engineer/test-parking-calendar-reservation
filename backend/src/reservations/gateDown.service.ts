@@ -55,7 +55,11 @@ export class GateDownService {
    * @throws {AppError} 503 `device_unhealthy` — デバイス事前 NG（IoT を呼ばず即時失敗）
    * @throws {AppError} 504 `timeout` — デバイス無応答（再試行可）
    */
-  async execute(userId: string, reservationId: string, requestId: string): Promise<GateDownResponse> {
+  async execute(
+    userId: string,
+    reservationId: string,
+    requestId: string,
+  ): Promise<GateDownResponse> {
     // 0) 冪等再送: 自分の同一 request_id の既存結果を先に確認する（user_id で絞り認可も担保）。
     //    success は副作用（板ダウン）を伴うため、デバイスを再発火させず初回と同じ結果を返す。
     const existing = await this.repo.findCommandByRequestId(requestId, userId);
@@ -78,7 +82,8 @@ export class GateDownService {
 
     // 3) 状態・期間チェック（reserved かつ now が [start, end] 内）。NG は failure→409 invalid_state。
     const now = new Date();
-    const inPeriod = now.getTime() >= ctx.start_time.getTime() && now.getTime() <= ctx.end_time.getTime();
+    const inPeriod =
+      now.getTime() >= ctx.start_time.getTime() && now.getTime() <= ctx.end_time.getTime();
     if (ctx.status !== 'reserved' || !inPeriod) {
       await this.recordResult(commandId, 'failure');
       throw new AppError(409, 'invalid_state', 'この予約は現在 DOWN 指示できません', false);
@@ -91,7 +96,11 @@ export class GateDownService {
     }
 
     // 5) デバイス事前 NG（last_seen_at が古い／未割当）。IoT を呼ばず即時 503（タイムアウト待ちを避ける）。
-    const healthy = isDeviceHealthy(ctx.device_last_seen_at, config.device.healthThresholdMinutes, now);
+    const healthy = isDeviceHealthy(
+      ctx.device_last_seen_at,
+      config.device.healthThresholdMinutes,
+      now,
+    );
     if (!healthy || ctx.device_id === null) {
       await this.recordResult(commandId, 'failure');
       throw new AppError(503, 'device_unhealthy', 'デバイスが応答できる状態にありません', false);
@@ -140,12 +149,20 @@ export class GateDownService {
    * @returns success のときのみ {@link GateDownResponse}
    * @throws {AppError} 409 `command_in_progress`（pending）／`command_failed`（failure）
    */
-  private replay(existing: { id: string; result: 'pending' | 'success' | 'failure' }): GateDownResponse {
+  private replay(existing: {
+    id: string;
+    result: 'pending' | 'success' | 'failure';
+  }): GateDownResponse {
     if (existing.result === 'success') return { result: 'down', command_id: existing.id };
     if (existing.result === 'pending') {
       throw new AppError(409, 'command_in_progress', '同じ操作を処理中です', false);
     }
     // failure: この request_id は既に失敗済み。再試行は新しい request_id で行う。
-    throw new AppError(409, 'command_failed', 'この操作は既に失敗しています（新しい操作で再試行してください）', false);
+    throw new AppError(
+      409,
+      'command_failed',
+      'この操作は既に失敗しています（新しい操作で再試行してください）',
+      false,
+    );
   }
 }

@@ -101,10 +101,9 @@ export function parseCreateReservationBody(body: unknown, now: Date): CreateRese
  * @throws {AppError} 422 `validation_error` — 指定フィールドの形式不正、または更新項目が空
  */
 export function parseUpdateReservationBody(body: unknown): ReservationPatch {
-  const b = (typeof body === 'object' && body !== null && !Array.isArray(body) ? body : {}) as Record<
-    string,
-    unknown
-  >;
+  const b = (
+    typeof body === 'object' && body !== null && !Array.isArray(body) ? body : {}
+  ) as Record<string, unknown>;
   const patch: ReservationPatch = {};
 
   if (b['spot_id'] !== undefined) {

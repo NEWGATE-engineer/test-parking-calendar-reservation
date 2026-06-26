@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { estimateSlotFee } from '../src/reservations/fee.js';
 
 /** テスト用の単価設定（仮 100円 / 30分）。 */

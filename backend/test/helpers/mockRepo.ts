@@ -1,11 +1,11 @@
 import { vi } from 'vitest';
 import {
   type AuthRepository,
-  type UserRow,
   type CreateUserInput,
+  DuplicateEmailError,
   type InsertRefreshTokenInput,
   type RefreshTokenRow,
-  DuplicateEmailError,
+  type UserRow,
 } from '../../src/auth/repository.js';
 
 /** モック内部で保持するリフレッシュトークン1件。 */
@@ -49,7 +49,8 @@ export function makeMockRepo(seedUsers: UserRow[] = []): AuthRepository & MockRe
     }),
 
     createUserWithConsent: vi.fn((input: CreateUserInput): Promise<string> => {
-      if (users.some((u) => u.email === input.email)) return Promise.reject(new DuplicateEmailError());
+      if (users.some((u) => u.email === input.email))
+        return Promise.reject(new DuplicateEmailError());
       const id = `user-${String(nextUserId++)}`;
       users.push({
         id,

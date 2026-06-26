@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AuthService } from '../src/auth/service.js';
 import { sha256, verifyAccessToken } from '../src/auth/tokens.js';
 import { makeMockRepo } from './helpers/mockRepo.js';
@@ -7,7 +7,12 @@ import { makeMockRepo } from './helpers/mockRepo.js';
 async function registered() {
   const repo = makeMockRepo();
   const svc = new AuthService(repo);
-  const reg = await svc.register({ email: 'a@b.com', password: '12345678', name: null, termsVersion: 'x' });
+  const reg = await svc.register({
+    email: 'a@b.com',
+    password: '12345678',
+    name: null,
+    termsVersion: 'x',
+  });
   return { repo, svc, reg };
 }
 
@@ -45,7 +50,10 @@ describe('AuthService.refresh', () => {
     const next = await svc.refresh(oldRaw); // 1回ローテーション（旧を失効）
 
     // 旧トークンをもう一度使う＝再使用 → 系統一括失効
-    await expect(svc.refresh(oldRaw)).rejects.toMatchObject({ httpStatus: 401, code: 'token_reused' });
+    await expect(svc.refresh(oldRaw)).rejects.toMatchObject({
+      httpStatus: 401,
+      code: 'token_reused',
+    });
 
     // 直近に発行した新トークンも family 失効で無効化されている
     const newer = repo.refreshTokens.find((t) => t.token_hash.equals(sha256(next.refresh_token)));
@@ -85,7 +93,9 @@ describe('AuthService.refresh', () => {
       tokenHash: sha256(raw),
       expiresAt: new Date(Date.now() - 1000),
     });
-    await expect(new AuthService(repo).refresh(raw)).rejects.toMatchObject({ code: 'invalid_token' });
+    await expect(new AuthService(repo).refresh(raw)).rejects.toMatchObject({
+      code: 'invalid_token',
+    });
     // 失効済み再使用(②)・並行競合(④)とは違い、期限切れ(③)は系統失効しない
     expect(repo.revokeFamily).not.toHaveBeenCalled();
   });
@@ -99,7 +109,10 @@ describe('AuthService.logout', () => {
     await svc.logout(userId, reg.refresh_token);
 
     // logout で失効済みになったため、その後の refresh は再使用扱い＝family 一括失効が発火
-    await expect(svc.refresh(reg.refresh_token)).rejects.toMatchObject({ httpStatus: 401, code: 'token_reused' });
+    await expect(svc.refresh(reg.refresh_token)).rejects.toMatchObject({
+      httpStatus: 401,
+      code: 'token_reused',
+    });
     expect(repo.revokeFamily).toHaveBeenCalledTimes(1); // 盗まれた logout 済みトークンを使った攻撃への防御
     // 当該トークンが実際に失効済みになっていることも確認
     const stored = repo.refreshTokens.find((t) => t.token_hash.equals(sha256(reg.refresh_token)));

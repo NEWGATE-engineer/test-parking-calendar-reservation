@@ -1,10 +1,18 @@
 import { config } from '../config.js';
+import { type TxRunner, withSerializableTx } from '../db.js';
 import { AppError, notFound } from '../http/errors.js';
-import { withSerializableTx, type TxRunner } from '../db.js';
-import { availabilityForSpot, isDeviceHealthy, type AvailabilityReason } from '../spots/availability.js';
+import {
+  type AvailabilityReason,
+  availabilityForSpot,
+  isDeviceHealthy,
+} from '../spots/availability.js';
 import { estimateSlotFee } from './fee.js';
-import { assertMergedWindow, type CreateReservationInput, type ReservationPatch } from './validation.js';
-import type { ReservationsRepository, ReservationStatus, ReservationRow } from './repository.js';
+import type { ReservationRow, ReservationStatus, ReservationsRepository } from './repository.js';
+import {
+  assertMergedWindow,
+  type CreateReservationInput,
+  type ReservationPatch,
+} from './validation.js';
 
 /**
  * 予約のユースケース。
@@ -48,10 +56,20 @@ function conflictError(reason: AvailabilityReason): AppError {
       return new AppError(409, 'conflict_overlap', '指定の時間帯はすでに予約されています', false);
     // バッファ未満の近接
     case 'buffer':
-      return new AppError(409, 'conflict_buffer', '前後の予約とのバッファ時間が不足しています', false);
+      return new AppError(
+        409,
+        'conflict_buffer',
+        '前後の予約とのバッファ時間が不足しています',
+        false,
+      );
     // デバイス不健全
     case 'device_unhealthy':
-      return new AppError(409, 'device_unhealthy', 'デバイスが応答していないため予約できません', false);
+      return new AppError(
+        409,
+        'device_unhealthy',
+        'デバイスが応答していないため予約できません',
+        false,
+      );
     // ok は available=true 側で扱うのでここには来ないが、網羅性のため保険
     default:
       return new AppError(409, 'conflict', '予約できません', false);
@@ -94,7 +112,13 @@ export class ReservationsService {
       if (spot === null) throw notFound('指定の区画は存在しません');
 
       // 2) 同一区画のバッファ込み競合を取得（SERIALIZABLE 下で範囲ロックを保持）
-      const conflicts = await this.repo.findConflictsForSpot(tx, input.spotId, input.start, input.end, buffer);
+      const conflicts = await this.repo.findConflictsForSpot(
+        tx,
+        input.spotId,
+        input.start,
+        input.end,
+        buffer,
+      );
 
       // 3) デバイス健全性＋競合から可否を判定（GET availability と同じ純粋ロジックを再利用）
       const healthy = isDeviceHealthy(spot.last_seen_at, threshold, now);

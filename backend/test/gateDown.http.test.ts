@@ -1,18 +1,21 @@
-import { describe, it, expect } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createGateDownRouter } from '../src/reservations/gateDown.router.js';
-import { errorHandler } from '../src/http/errorHandler.js';
+import { describe, expect, it } from 'vitest';
 import { signAccessToken } from '../src/auth/tokens.js';
+import { errorHandler } from '../src/http/errorHandler.js';
+import type { DeviceCommandPort } from '../src/reservations/deviceCommandPort.js';
+import { createGateDownRouter } from '../src/reservations/gateDown.router.js';
 import {
+  type MockCommandLogOptions,
   makeMockCommandLogRepo,
   mockDevicePortOk,
   mockDevicePortTimeout,
-  type MockCommandLogOptions,
 } from './helpers/mockGateDown.js';
-import type { DeviceCommandPort } from '../src/reservations/deviceCommandPort.js';
 
-function buildApp(opts: MockCommandLogOptions = {}, port: DeviceCommandPort = mockDevicePortOk()): express.Express {
+function buildApp(
+  opts: MockCommandLogOptions = {},
+  port: DeviceCommandPort = mockDevicePortOk(),
+): express.Express {
   const repo = makeMockCommandLogRepo(opts);
   const app = express();
   app.use(express.json());
@@ -53,7 +56,10 @@ describe('POST /reservations/:id/gate-down', () => {
   });
 
   it('予約不在は 404', async () => {
-    const res = await request(buildApp({ context: null })).post(PATH).set('authorization', auth).send(body);
+    const res = await request(buildApp({ context: null }))
+      .post(PATH)
+      .set('authorization', auth)
+      .send(body);
     expect(res.status).toBe(404);
   });
 

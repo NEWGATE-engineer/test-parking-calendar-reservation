@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
 import express from 'express';
-import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import { requireAuth } from '../src/http/requireAuth.js';
+import request from 'supertest';
+import { describe, expect, it } from 'vitest';
 import { errorHandler } from '../src/http/errorHandler.js';
+import { requireAuth } from '../src/http/requireAuth.js';
 
 function appWithGuard(): express.Express {
   const app = express();
@@ -43,7 +43,10 @@ describe('requireAuth', () => {
   });
 
   it('別の鍵で署名されたトークンは 401', async () => {
-    const token = jwt.sign({ sub: 'user-123' }, 'wrong-secret', { algorithm: 'HS256', expiresIn: 60 });
+    const token = jwt.sign({ sub: 'user-123' }, 'wrong-secret', {
+      algorithm: 'HS256',
+      expiresIn: 60,
+    });
     const res = await request(appWithGuard()).get('/me').set('authorization', `Bearer ${token}`);
     expect(res.status).toBe(401);
   });

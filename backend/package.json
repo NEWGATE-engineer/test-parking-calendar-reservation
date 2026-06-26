@@ -1,37 +1,41 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "description": "駐車場予約システム バックエンド API（TypeScript / Express）",
-  "type": "module",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
-    "test": "vitest run"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.5.2",
-    "jsonwebtoken": "^9.0.2",
-    "mssql": "^11.0.1"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/mssql": "^9.1.7",
-    "@types/node": "^25.9.3",
-    "@types/supertest": "^6.0.3",
-    "supertest": "^7.1.4",
-    "tsx": "^4.20.6",
-    "typescript": "^6.0.3",
-    "vitest": "^3.2.4"
-  }
+	"name": "backend",
+	"version": "1.0.0",
+	"description": "駐車場予約システム バックエンド API（TypeScript / Express）",
+	"type": "module",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check --error-on-warnings",
+		"lint:fix": "biome check --write --error-on-warnings",
+		"format": "biome format --write",
+		"dev": "tsx watch src/index.ts",
+		"start": "node dist/index.js",
+		"test": "vitest run"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"bcryptjs": "^3.0.3",
+		"dotenv": "^17.2.3",
+		"express": "^5.2.1",
+		"express-rate-limit": "^8.5.2",
+		"jsonwebtoken": "^9.0.2",
+		"mssql": "^11.0.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.1",
+		"@types/bcryptjs": "^2.4.6",
+		"@types/express": "^5.0.6",
+		"@types/jsonwebtoken": "^9.0.10",
+		"@types/mssql": "^9.1.7",
+		"@types/node": "^25.9.3",
+		"@types/supertest": "^6.0.3",
+		"supertest": "^7.1.4",
+		"tsx": "^4.20.6",
+		"typescript": "^6.0.3",
+		"vitest": "^3.2.4"
+	}
 }

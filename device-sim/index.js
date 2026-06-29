@@ -35,6 +35,13 @@ const SCHEMA_VERSION = 1;
 const DOWN_METHOD = 'down';
 /** テレメトリ種別。 */
 const TELEMETRY = Object.freeze({ ENTRY: 'entry', EXIT: 'exit', UP: 'up' });
+/** requestId の期待形式（UUID v4 系）。不正入力の拒否に使う。 */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/**
+ * 記憶する処理済み requestId の上限（FIFO）。長時間起動・大量 DOWN（CI 等）で Set が
+ * 無制限に増えてメモリ枯渇するのを防ぐ。仮値（要件 §12 未確定の運用パラメータ）。
+ */
+const MAX_HANDLED_DOWNS = 1000;
 
 // ── デバイス状態（簡易ステートマシン）──────────────────────────────────────────────
 const state = {
@@ -95,15 +102,22 @@ function buildTelemetry(type) {
  * テレメトリを 1 件送出する。オンラインなら IoT Hub へ、オフラインなら標準出力へ。
  * @param {string} type entry|exit|up
  */
-async function sendTelemetry(type) {
-  const payload = buildTelemetry(type);
-
-  // 送出に合わせてローカルの見た目状態も更新（あくまで表示用）。
+/**
+ * テレメトリ送出に対応してローカルの見た目状態を進める（あくまで表示用）。
+ * @param {string} type entry|exit|up
+ */
+function applyTelemetryState(type) {
   if (type === TELEMETRY.ENTRY) state.occupancy = 'occupied';
   if (type === TELEMETRY.EXIT) state.occupancy = 'vacant';
   if (type === TELEMETRY.UP) state.plate = 'up';
+}
+
+async function sendTelemetry(type) {
+  const payload = buildTelemetry(type);
 
   if (!online) {
+    // オフラインは確実に出力できるので即時にローカル状態を更新。
+    applyTelemetryState(type);
     console.log(`[offline] テレメトリ送出（dry-run）: ${JSON.stringify(payload)}`);
     return;
   }
@@ -117,9 +131,12 @@ async function sendTelemetry(type) {
   msg.properties.add('telemetryType', type);
   try {
     await iotClient.sendEvent(msg);
+    // 送信に成功してからローカル状態を更新する。失敗時に「送れていないのに plate=up」と
+    // ローカル表示だけ進んでクラウドと無音でズレるのを防ぐ。
+    applyTelemetryState(type);
     console.log(`[online] テレメトリ送出: ${JSON.stringify(payload)}`);
   } catch (err) {
-    console.error(`[online] テレメトリ送出失敗: ${/** @type {Error} */ (err).message}`);
+    console.error(`[online] テレメトリ送出失敗（状態は更新しません）: ${/** @type {Error} */ (err).message}`);
   }
 }
 
@@ -144,10 +161,22 @@ function handleDown(requestId) {
     return { ok: true, replayed: true };
   }
 
-  state.handledRequestIds.add(requestId);
+  rememberRequestId(requestId);
   state.plate = 'down';
   console.log(`[down] requestId=${requestId} → 板を DOWN にしました`);
   return { ok: true, replayed: false };
+}
+
+/**
+ * 処理済み requestId を記録する。上限超過時は最古を1件捨てる FIFO（Set は挿入順を保つ）。
+ * @param {string} requestId 冪等キー
+ */
+function rememberRequestId(requestId) {
+  if (state.handledRequestIds.size >= MAX_HANDLED_DOWNS) {
+    const oldest = state.handledRequestIds.values().next().value;
+    if (oldest !== undefined) state.handledRequestIds.delete(oldest);
+  }
+  state.handledRequestIds.add(requestId);
 }
 
 /** オンライン時: IoT Hub に接続し、DOWN ダイレクトメソッドのハンドラを登録する。 */
@@ -162,17 +191,30 @@ async function connectIotHub() {
 
   // DOWN ダイレクトメソッド受信。payload.requestId を冪等キーに使う。
   iotClient.onDeviceMethod(DOWN_METHOD, (request, response) => {
-    const requestId =
-      (request.payload && request.payload.requestId) || '(requestId 欠落)';
+    const raw = request.payload && request.payload.requestId;
+
+    // 入力検証: requestId は UUID のみ受け付ける。サービス側が侵害された場合の
+    //   ① 長大文字列の大量送信による Set 肥大化（DoS）
+    //   ② 改行/ANSI を含む文字列によるログインジェクション
+    // を防ぐ。不正値は中身をログに出さず（インジェクション回避）400 で拒否する。
+    if (typeof raw !== 'string' || !UUID_RE.test(raw)) {
+      console.warn('[down] 不正な requestId を拒否（UUID 形式不一致）');
+      response.send(400, { ok: false, reason: 'invalid_requestId' }, (err) => {
+        if (err) console.error(`[down] 応答送信失敗: ${err.message}`);
+      });
+      return;
+    }
+    const requestId = raw;
     const result = handleDown(requestId);
 
     // timeout モードは応答を返さない（呼び出し側＝backend がタイムアウトする）。
     if (state.downMode === 'timeout') return;
 
     // 成功応答（200）。本文に板位置と冪等再送フラグを載せる。
+    // ここに到達する result は必ず { ok:true, replayed } （timeout は上で return 済み）。
     response.send(
       200,
-      { ok: true, requestId, plate: state.plate, replayed: result.ok === true && result.replayed },
+      { ok: true, requestId, plate: state.plate, replayed: result.replayed === true },
       (err) => {
         if (err) console.error(`[down] 応答送信失敗: ${err.message}`);
       },

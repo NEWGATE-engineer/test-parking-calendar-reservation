@@ -76,7 +76,8 @@ device→cloud（D2C）メッセージ。本文は JSON（`contentType: applicat
   { "ok": true, "requestId": "<uuid>", "plate": "down", "replayed": false }
   ```
 
-- **冪等性**: 同一 `requestId` の再送は板を再発火せず成功を返す（`replayed: true`）。物理安全上もっとも重要（ADR 0003 §3 の「success のみ厳密復元」とデバイス側で整合）。
+- **入力検証**: `requestId` は UUID のみ受け付ける。不正な場合は status `400` `{ ok: false, reason: "invalid_requestId" }`（DoS・ログインジェクション対策）。backend は常に UUID を採番するので正常系では起きない。
+- **冪等性**: 同一 `requestId` の再送は板を再発火せず成功を返す（`replayed: true`）。物理安全上もっとも重要（ADR 0003 §3 の「success のみ厳密復元」とデバイス側で整合）。処理済み requestId は FIFO 上限（`MAX_HANDLED_DOWNS=1000`・仮値）で保持しメモリ増加を抑える。
 - **タイムアウト**: `mode timeout` のとき device は応答しない。呼び出し側（backend `DeviceCommandPort`）はタイムアウトし `504 timeout`（retryable）にマップする。
 
 ## このスライスの範囲外（次段以降）

@@ -41,10 +41,9 @@ Express の API と Functions のトリガが**同じ Service / Action を呼ぶ
     src/
       db.ts             ← backend から移設（getPool/withSerializableTx/Tx/TxRunner）
       config.ts         ← DB 接続・reservation・device の設定（一部）
-      reservations/     ← repository / service / fee / 状態遷移
-      spots/availability.ts
       errors.ts         ← ドメイン例外 AppError（HTTP マッピングは backend に残す）
-      ports/            ← DeviceCommandPort 等の interface（ポート）
+      reservations/     ← repository / service / fee / validation / commandLog.repository / deviceCommandPort（ポート interface）/ gateDown.* + index.ts（バレル）
+      spots/            ← repository / service / availability / validation + index.ts（バレル）
   backend/              ← Express アダプタ。@parking/core を import
   functions/            ← IoT/Timer アダプタ。@parking/core を import
   device-sim/           ← core 非依存（デバイス SDK のみ）。workspaces メンバだが core を使わない
@@ -54,10 +53,10 @@ Express の API と Functions のトリガが**同じ Service / Action を呼ぶ
 
 - **入れる**: Azure / Express / IoT に依存しない「ドメインロジック・DB アクセス・状態遷移・純粋計算（料金等）・ポート interface」。
 - **入れない（アダプタ側に残す）**:
-  - Express / HTTP（router・validation・errorHandler・requireAuth）→ `backend`
+  - Express / HTTP（router・errorHandler・requireAuth・asyncHandler）→ `backend`。なお入力バリデーション（`unknown` → 型付きへ parse する純粋関数）は Express 非依存かつ service が依存するため `core/{reservations,spots}/validation.ts` に移設済み（第2段・§4）。
   - IoT Hub / Functions ランタイム（トリガ・テレメトリ parse）→ `functions`
   - デバイス SDK（azure-iot-device）→ `device-sim`、および `DeviceCommandPort` の**実 IoT 実装**（アダプタ）→ `backend`/`functions`
-- **ポート&アダプタ**: `DeviceCommandPort`（[[0003-gate-down-idempotency]] §4）の interface は `core/ports`、実装は注入。テストは引き続きモックで DB・IoT なし検証。
+- **ポート&アダプタ**: `DeviceCommandPort`（[[0003-gate-down-idempotency]] §4）の interface は `core/reservations/deviceCommandPort.ts`、実装は注入。テストは引き続きモックで DB・IoT なし検証。
 
 ### 3. モジュール系を ESM に統一し、functions を ESM 化
 

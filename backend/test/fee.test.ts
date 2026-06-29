@@ -1,5 +1,5 @@
+import { estimateSlotFee } from '@parking/core';
 import { describe, expect, it } from 'vitest';
-import { estimateSlotFee } from '../src/reservations/fee.js';
 
 /** テスト用の単価設定（仮 100円 / 30分）。 */
 const cfg = { unitPriceJpy: 100, unitMinutes: 30 };

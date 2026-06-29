@@ -1,14 +1,12 @@
-import { vi } from 'vitest';
 import type {
   CommandLogRepository,
   CommandResult,
-  GateDownContext,
-  InsertPendingResult,
-} from '../../src/reservations/commandLog.repository.js';
-import type {
   DeviceCommandPort,
   DeviceCommandResult,
-} from '../../src/reservations/deviceCommandPort.js';
+  GateDownContext,
+  InsertPendingResult,
+} from '@parking/core';
+import { vi } from 'vitest';
 
 /** {@link makeMockCommandLogRepo} の挙動を指定するオプション。 */
 export interface MockCommandLogOptions {

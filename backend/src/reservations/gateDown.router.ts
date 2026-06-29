@@ -1,11 +1,15 @@
+import {
+  type CommandLogRepository,
+  type DeviceCommandPort,
+  GateDownService,
+  notConfiguredDeviceCommandPort,
+  parseGateDownBody,
+  parseReservationId,
+  SqlCommandLogRepository,
+} from '@parking/core';
 import { Router } from 'express';
 import { asyncHandler } from '../http/asyncHandler.js';
 import { getUserId, requireAuth } from '../http/requireAuth.js';
-import { type CommandLogRepository, SqlCommandLogRepository } from './commandLog.repository.js';
-import { type DeviceCommandPort, notConfiguredDeviceCommandPort } from './deviceCommandPort.js';
-import { GateDownService } from './gateDown.service.js';
-import { parseGateDownBody } from './gateDown.validation.js';
-import { parseReservationId } from './validation.js';
 
 /**
  * `/reservations/:id/gate-down` ルーター（DOWN 指示・入庫）。

@@ -1,9 +1,9 @@
+import type { SpotsRepository } from '@parking/core';
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { signAccessToken } from '../src/auth/tokens.js';
 import { errorHandler } from '../src/http/errorHandler.js';
-import type { SpotsRepository } from '../src/spots/repository.js';
 import { createSpotsRouter } from '../src/spots/router.js';
 import { makeMockSpotsRepo } from './helpers/mockSpotsRepo.js';
 

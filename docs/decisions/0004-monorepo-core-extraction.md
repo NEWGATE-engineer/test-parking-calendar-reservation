@@ -71,8 +71,9 @@ Express の API と Functions のトリガが**同じ Service / Action を呼ぶ
 
 IoT スライスが必要とする最小限から `core` へ移す:
 
-1. 第1段: `db.ts` ＋ `config.ts`（DB/reservation/device 設定）＋ `errors.ts`（AppError）を `core` へ。backend の import を `@parking/core` に張り替え、既存 190 テストが green を維持。
-2. 第2段: `reservations/{repository,service,fee}`・`spots/availability` を `core` へ（状態遷移リポジトリを含む）。テスト（vitest）も core 側へ移設。
+1. 第1段（完了・PR #20）: `db.ts` ＋ `config.ts`（DB/reservation/device 設定）＋ `errors.ts`（AppError）を `core` へ。backend の import を `@parking/core` に張り替え、既存 190 テストが green を維持。
+2. 第2段（完了）: `reservations/{repository,service,fee,validation,commandLog.repository,deviceCommandPort,gateDown.service,gateDown.validation}`・`spots/{repository,service,availability,validation}` を `core` へ（状態遷移リポジトリ・ポート interface を含む）。`router` のみ backend に残す（Express 依存層）。core は `reservations/index.ts`・`spots/index.ts` のバレル経由で公開。
+   - **当初案からの変更**: テストは `core` へ移設せず backend に据え置き、import のみ `@parking/core` に張り替えた。理由は mock helper（`mockReservationsRepo` / `mockSpotsRepo` / `mockGateDown`）が **ドメイン単体テストと HTTP（supertest）テストで共有**されており、helper を core へ移すと backend 側 HTTP テストが壊れ、複製すると drift するため。テスト移設は core が共有 helper に依存しない単体テストを持つ第3段（IoT 新規ロジック）以降に再検討する。
 3. 以降の IoT スライスで `reserved→active` 等の新規ロジックは最初から `core` に書く。
 
 各段でビルド・テストを通し、PR を分けてリスクを抑える。

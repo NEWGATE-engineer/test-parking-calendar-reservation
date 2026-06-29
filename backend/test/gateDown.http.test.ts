@@ -1,9 +1,9 @@
+import type { DeviceCommandPort } from '@parking/core';
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { signAccessToken } from '../src/auth/tokens.js';
 import { errorHandler } from '../src/http/errorHandler.js';
-import type { DeviceCommandPort } from '../src/reservations/deviceCommandPort.js';
 import { createGateDownRouter } from '../src/reservations/gateDown.router.js';
 import {
   type MockCommandLogOptions,

@@ -1,8 +1,11 @@
-import { AppError } from '@parking/core';
+import {
+  AppError,
+  type CreateReservationInput,
+  type ReservationPatch,
+  type ReservationRow,
+  ReservationsService,
+} from '@parking/core';
 import { describe, expect, it } from 'vitest';
-import type { ReservationRow } from '../src/reservations/repository.js';
-import { ReservationsService } from '../src/reservations/service.js';
-import type { CreateReservationInput, ReservationPatch } from '../src/reservations/validation.js';
 import { fakeTxRunner, makeMockReservationsRepo } from './helpers/mockReservationsRepo.js';
 
 /** 希望時間帯 10:00–11:00（UTC）。 */

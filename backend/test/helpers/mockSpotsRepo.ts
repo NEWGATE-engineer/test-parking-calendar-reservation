@@ -1,9 +1,5 @@
+import type { ReservationWindow, SpotsRepository, SpotWithDevice } from '@parking/core';
 import { vi } from 'vitest';
-import type {
-  ReservationWindow,
-  SpotsRepository,
-  SpotWithDevice,
-} from '../../src/spots/repository.js';
 
 /**
  * テスト用のインメモリ {@link SpotsRepository}。

@@ -1,5 +1,3 @@
-import type { Tx, TxRunner } from '@parking/core';
-import { vi } from 'vitest';
 import type {
   CreatedReservation,
   InsertReservationInput,
@@ -7,8 +5,11 @@ import type {
   ReservationStatus,
   ReservationsRepository,
   SpotForReservation,
-} from '../../src/reservations/repository.js';
-import type { TimeWindow } from '../../src/spots/availability.js';
+  TimeWindow,
+  Tx,
+  TxRunner,
+} from '@parking/core';
+import { vi } from 'vitest';
 
 /**
  * 偽のトランザクションランナー。実 DB を張らず、コールバックを即実行するだけ。

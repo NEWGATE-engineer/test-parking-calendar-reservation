@@ -1,6 +1,5 @@
+import { SpotsService, type SpotWithDevice } from '@parking/core';
 import { describe, expect, it } from 'vitest';
-import type { SpotWithDevice } from '../src/spots/repository.js';
-import { SpotsService } from '../src/spots/service.js';
 import { makeMockSpotsRepo } from './helpers/mockSpotsRepo.js';
 
 function spot(

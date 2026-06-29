@@ -1,5 +1,5 @@
-import { getPool } from '@parking/core';
 import mssql from 'mssql';
+import { getPool } from '../db.js';
 
 /**
  * 区画・満空のデータアクセス層。SQL はすべてパラメータ化（SQLi 防止）。

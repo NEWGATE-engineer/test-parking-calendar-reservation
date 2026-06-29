@@ -1,4 +1,6 @@
-import { AppError, config, notFound, type TxRunner, withSerializableTx } from '@parking/core';
+import { config } from '../config.js';
+import { type TxRunner, withSerializableTx } from '../db.js';
+import { AppError, notFound } from '../errors.js';
 import {
   type AvailabilityReason,
   availabilityForSpot,

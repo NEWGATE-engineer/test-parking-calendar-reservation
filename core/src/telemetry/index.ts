@@ -6,6 +6,8 @@
  * @module @parking/core/telemetry
  */
 
+// バッチ取り込み（受信アダプタ共通ロジック・poison/再試行制御）
+export * from './ingest.js';
 // データアクセス（条件付き UPDATE 群）
 export * from './repository.js';
 // ユースケース（onEntry/onExit/onPlateUp）

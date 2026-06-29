@@ -59,6 +59,9 @@ functions は「受信→検証（`parseTelemetryEvent`）→ディスパッチ�
 - 追加: `core/src/telemetry/*`、`functions/src/functions/telemetry.ts`、`reservations/fee.ts` に `estimateOverstayFee`/`computeCompletionFee`、テスト（telemetry.service・fee 超過）。
 - 変更: `config.ts`（jwt.secret 遅延化・overstay 単価追加）、`core/src/index.ts`（telemetry バレル公開）。
 - DDL 変更なし（既存テーブルを使用。冪等化テーブルは作らない）。
+- フォローアップ（次の add-migration スライス）: `findOpenUsageForSpot` 用に被覆索引
+  `IX_UsageRecord_resv_open (reservation_id, exit_time) INCLUDE (entry_time, id)` を追加し、
+  SERIALIZABLE 下のスキャン範囲＝ロック保持時間を抑える（コードに TODO コメントを残置）。
 - functions の App Settings: `SQL_CONNECTION_STRING`（core 接続）、`IOT_HUB_EVENTS`（IoT Hub 組み込みエンドポイント接続文字列）、`IOT_HUB_EVENT_HUB_NAME`。
 
 ## 代替案

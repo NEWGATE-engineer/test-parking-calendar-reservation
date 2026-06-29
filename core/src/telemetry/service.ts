@@ -59,6 +59,7 @@ export class TelemetryService {
    *
    * @param ev entry テレメトリ
    * @returns 何が起きたかの内訳（ログ・テスト用）
+   * @throws DB 接続失敗・タイムアウト・デッドロック等（一時障害。functions が再 throw し Functions が再試行する）
    */
   async handleEntry(ev: TelemetryEvent): Promise<EntryResult> {
     return this.runTx(async (tx) => {
@@ -122,7 +123,7 @@ export class TelemetryService {
         eventRecorded = true;
       }
 
-      // 初回入庫のみ reserved→active（条件付き UPDATE・0 件＝既に active）。
+      // reserved→active（条件付き UPDATE のため再配信でも安全に呼べる。0 件＝既に active＝初回でない）。
       const activatedRows = await this.repo.activateReservation(tx, resv.id);
 
       return {
@@ -142,6 +143,7 @@ export class TelemetryService {
    *
    * @param ev exit テレメトリ
    * @returns 何が起きたかの内訳（ログ・テスト用）
+   * @throws DB 接続失敗・タイムアウト・デッドロック等（一時障害。functions が再 throw し Functions が再試行する）
    */
   async handleExit(ev: TelemetryEvent): Promise<ExitResult> {
     return this.runTx(async (tx) => {
@@ -237,6 +239,7 @@ export class TelemetryService {
    *
    * @param ev up テレメトリ
    * @returns 何が起きたかの内訳（ログ・テスト用）
+   * @throws DB 接続失敗・タイムアウト・デッドロック等（一時障害。functions が再 throw し Functions が再試行する）
    */
   async handlePlateUp(ev: TelemetryEvent): Promise<PlateUpResult> {
     return this.runTx(async (tx) => {

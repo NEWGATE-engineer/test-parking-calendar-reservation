@@ -165,6 +165,23 @@ describe('TelemetryService.handleExit', () => {
     });
   });
 
+  it('終了後でも completeReservation が 0 件（タイマー autoComplete に競合負け）: Fee を INSERT しない', async () => {
+    const repo = makeMockTelemetryRepo({
+      device: downDevice,
+      openUsage,
+      closeRows: 1,
+      remainingOpen: 0,
+      completeRows: 0, // 先に autoComplete 等が completed にした＝条件付き UPDATE で負け
+    });
+    const svc = new TelemetryService(repo, fakeTxRunner);
+    const r = await svc.handleExit(ev('exit', '2026-06-25T11:30:00Z'));
+
+    // UQ_Fee_resv 二重防止の核心: 勝者でないので Fee を作らない。
+    expect(r).toMatchObject({ usageClosed: true, completed: false, feeInserted: false });
+    expect(repo.completeReservation).toHaveBeenCalledTimes(1);
+    expect(repo.insertFee).not.toHaveBeenCalled();
+  });
+
   it('再配信（既に閉じている）: 何も確定せず DeviceEvent も出さない', async () => {
     const repo = makeMockTelemetryRepo({ device: downDevice, openUsage, closeRows: 0 });
     const svc = new TelemetryService(repo, fakeTxRunner);

@@ -44,7 +44,9 @@ export interface EntryResult {
 
 /** onExit の処理結果（ログ・テスト用）。 */
 export interface ExitResult {
+  /** deviceId に対応する Device 行が見つかったか（false=不明デバイスで無視）。 */
   deviceFound: boolean;
+  /** 対応づいた予約 ID（対象 open 利用記録なしなら null）。 */
   reservationId: string | null;
   /** open だった UsageRecord に exit_time を入れて閉じたか（再配信では false）。 */
   usageClosed: boolean;
@@ -52,6 +54,7 @@ export interface ExitResult {
   completed: boolean;
   /** Fee を INSERT したか（completed と同時のみ）。 */
   feeInserted: boolean;
+  /** DeviceEvent(exit) を記録したか（close 成功時のみ）。 */
   eventRecorded: boolean;
 }
 
@@ -63,7 +66,7 @@ export interface PlateUpResult {
   eventRecorded: boolean;
 }
 
-/** ディスパッチ {@link "telemetry/service".TelemetryService.handle} の結果（種別タグ付き）。 */
+/** ディスパッチ（TelemetryService.handle）の結果（種別 kind タグ付き）。 */
 export type TelemetryResult =
   | ({ kind: 'entry' } & EntryResult)
   | ({ kind: 'exit' } & ExitResult)

@@ -222,6 +222,11 @@ export class SqlTelemetryRepository implements TelemetryRepository {
 
   /** @inheritDoc */
   async findOpenUsageForSpot(tx: Tx, spotId: string): Promise<OpenUsageForSpot | null> {
+    // TODO(次スライス add-migration): `exit_time IS NULL` と `entry_time` を被覆する索引が無く、
+    // 予約履歴の増加とともに SERIALIZABLE 下のスキャン範囲＝ロック保持時間が伸び得る。
+    //   CREATE INDEX IX_UsageRecord_resv_open ON UsageRecord (reservation_id, exit_time)
+    //     INCLUDE (entry_time, id);
+    // を別マイグレーションで追加する（本スライスは DDL 変更なしの方針・ADR 0005）。
     const result = await new mssql.Request(tx)
       .input('spot_id', mssql.UniqueIdentifier, spotId)
       .query<OpenUsageForSpot>(

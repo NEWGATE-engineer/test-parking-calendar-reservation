@@ -16,6 +16,22 @@ export interface SlotFeeConfig {
   unitMinutes: number;
 }
 
+/** 超過料金の計算に使う設定（`config.reservation` のうち超過単価・課金単位）。 */
+export interface OverstayFeeConfig {
+  /** 超過の課金単位あたりの単価（円）。仮 100 円（§12 #1・F5-3）。 */
+  overstayUnitPriceJpy: number;
+  /** 課金単位（分）。仮 30 分（予約枠と共通）。 */
+  unitMinutes: number;
+}
+
+/** 完了時に確定する料金の内訳（Fee テーブルの slot_fee / overstay_fee に対応）。 */
+export interface CompletionFee {
+  /** 予約枠料金（円）。 */
+  slotFee: number;
+  /** 超過料金（円）。超過なしは 0。 */
+  overstayFee: number;
+}
+
 /**
  * 予約枠の見込み料金を「単位時間ごとの切り上げ課金」で算出する。
  *
@@ -32,4 +48,47 @@ export function estimateSlotFee(start: Date, end: Date, cfg: SlotFeeConfig): num
   // 端数は切り上げ（30分単位なら 31分でも 2 単位）。最低 1 単位。
   const units = Math.max(1, Math.ceil(durationMin / cfg.unitMinutes));
   return units * cfg.unitPriceJpy;
+}
+
+/**
+ * 超過料金を「単位時間ごとの切り上げ課金」で算出する（F5-3「超過分のみ実時間で追加課金」）。
+ *
+ * 超過時間 = max(0, 最終 exit_time − end_time)。超過が無ければ 0 円（予約枠と違い最低課金なし）。
+ *
+ * @param endTime 予約終了時刻（UTC）
+ * @param lastExitTime 最終出庫時刻（UTC）。一時外出で複数あるときは最後の出庫
+ * @param cfg 超過単価・課金単位
+ * @returns 超過料金（円）。超過なしは 0
+ */
+export function estimateOverstayFee(
+  endTime: Date,
+  lastExitTime: Date,
+  cfg: OverstayFeeConfig,
+): number {
+  const overstayMin = (lastExitTime.getTime() - endTime.getTime()) / 60_000;
+  // 終了前に出庫していれば超過なし＝0 円（予約枠のような最低 1 単位は課さない）。
+  if (overstayMin <= 0) return 0;
+  const units = Math.ceil(overstayMin / cfg.unitMinutes);
+  return units * cfg.overstayUnitPriceJpy;
+}
+
+/**
+ * 完了時の確定料金（予約枠＋超過）を算出する。
+ *
+ * @param start 予約開始（UTC）
+ * @param end 予約終了（UTC）
+ * @param lastExitTime 最終出庫時刻（UTC）
+ * @param cfg 単価・課金単位（予約枠＋超過）
+ * @returns slotFee / overstayFee の内訳
+ */
+export function computeCompletionFee(
+  start: Date,
+  end: Date,
+  lastExitTime: Date,
+  cfg: SlotFeeConfig & OverstayFeeConfig,
+): CompletionFee {
+  return {
+    slotFee: estimateSlotFee(start, end, cfg),
+    overstayFee: estimateOverstayFee(end, lastExitTime, cfg),
+  };
 }

@@ -19,12 +19,12 @@ file_path="$(printf '%s' "$payload" | node -e 'let d="";process.stdin.on("data",
 [ -n "$file_path" ] || exit 0
 
 # 対象は Biome の includes（ルート biome.json）と一致する .ts のみ:
-# core/src・backend/src・backend/test・functions/src 配下。それ以外（docs・mobile・
-# 各パッケージ直下の設定ファイルなど）は対象外なのでスキップ。
-case "$file_path" in
-  *core/src/*.ts|*backend/src/*.ts|*backend/test/*.ts|*functions/src/*.ts) ;;
-  *) exit 0 ;;
-esac
+# core/src・functions/src・backend/src・backend/test 配下（サブディレクトリ含む）。
+# それ以外（docs・mobile・各パッケージ直下の設定ファイルなど）は対象外なのでスキップ。
+# bash の case グロブ `*` は `/` をまたがないため core/src/reservations/service.ts の
+# ようなサブディレクトリにマッチしない。biome.json の includes は再帰グロブ
+# `core/src/**/*.ts` なので、こちらも grep -E の再帰パターンで揃える。
+echo "$file_path" | grep -qE '/(core|functions)/src/.*\.ts$|/backend/(src|test)/.*\.ts$' || exit 0
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
 

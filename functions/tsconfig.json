@@ -8,7 +8,11 @@
     "lib": ["esnext"],
     "types": ["node"],
     "outDir": "dist",
-    "rootDir": ".",
+    // core と同じく rootDir を src に揃える（ADR 0004）。
+    // src/functions/foo.ts → dist/functions/foo.js となり、package.json の
+    // "main": "dist/functions/*.js" と一致する。core が rootDir:"./src" 統一なので
+    // functions だけ rootDir:"." にすると出力パスがずれる隠れトラップになるため避ける。
+    "rootDir": "./src",
     "esModuleInterop": true,
     "sourceMap": true,
     "strict": true,

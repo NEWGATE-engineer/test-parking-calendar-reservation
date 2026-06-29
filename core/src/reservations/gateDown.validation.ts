@@ -1,4 +1,4 @@
-import { validationError } from '@parking/core';
+import { validationError } from '../errors.js';
 
 /**
  * POST /reservations/:id/gate-down のリクエストボディ検証。

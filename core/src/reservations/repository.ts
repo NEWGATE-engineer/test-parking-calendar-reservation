@@ -1,5 +1,5 @@
-import { getPool, type Tx } from '@parking/core';
 import mssql from 'mssql';
+import { getPool, type Tx } from '../db.js';
 import type { TimeWindow } from '../spots/availability.js';
 
 /**

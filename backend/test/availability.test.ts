@@ -1,5 +1,5 @@
+import { availabilityForSpot, isDeviceHealthy } from '@parking/core';
 import { describe, expect, it } from 'vitest';
-import { availabilityForSpot, isDeviceHealthy } from '../src/spots/availability.js';
 
 const now = new Date('2026-06-24T00:00:00Z');
 const window = { start: new Date('2026-06-24T10:00:00Z'), end: new Date('2026-06-24T11:00:00Z') };

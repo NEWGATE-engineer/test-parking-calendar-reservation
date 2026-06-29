@@ -1,4 +1,5 @@
-import { AppError, config, notFound } from '@parking/core';
+import { config } from '../config.js';
+import { AppError, notFound } from '../errors.js';
 import { isDeviceHealthy } from '../spots/availability.js';
 import type { CommandLogRepository } from './commandLog.repository.js';
 import type { DeviceCommandPort } from './deviceCommandPort.js';

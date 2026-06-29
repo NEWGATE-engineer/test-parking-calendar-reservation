@@ -1,11 +1,11 @@
-import { AppError } from '@parking/core';
-import { describe, expect, it } from 'vitest';
 import {
+  AppError,
   parseCreateReservationBody,
   parseListQuery,
   parseReservationId,
   parseUpdateReservationBody,
-} from '../src/reservations/validation.js';
+} from '@parking/core';
+import { describe, expect, it } from 'vitest';
 
 /** 過去日時判定の基準（固定）。これより後の時刻を「未来」とみなす。 */
 const NOW = new Date('2026-06-25T00:00:00Z');

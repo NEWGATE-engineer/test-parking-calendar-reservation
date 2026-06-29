@@ -1,6 +1,5 @@
+import { type GateDownContext, GateDownService } from '@parking/core';
 import { describe, expect, it } from 'vitest';
-import type { GateDownContext } from '../src/reservations/commandLog.repository.js';
-import { GateDownService } from '../src/reservations/gateDown.service.js';
 import {
   makeMockCommandLogRepo,
   mockDevicePortOk,

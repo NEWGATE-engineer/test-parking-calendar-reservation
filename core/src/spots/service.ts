@@ -1,4 +1,4 @@
-import { config } from '@parking/core';
+import { config } from '../config.js';
 import { type AvailabilityReason, availabilityForSpot, isDeviceHealthy } from './availability.js';
 import type { ReservationWindow, SpotsRepository } from './repository.js';
 

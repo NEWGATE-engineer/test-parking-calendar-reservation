@@ -1,4 +1,4 @@
-import { validationError } from '../http/errors.js';
+import { validationError } from '@parking/core';
 
 /**
  * `/auth/*` のリクエスト本文バリデーション。

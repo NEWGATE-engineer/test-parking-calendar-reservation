@@ -1,6 +1,6 @@
+import { AppError } from '@parking/core';
 import { describe, expect, it } from 'vitest';
 import { parseLogin, parseRefreshToken, parseRegister } from '../src/auth/validation.js';
-import { AppError } from '../src/http/errors.js';
 
 describe('parseRegister', () => {
   it('正常な入力を受理（name 省略は null）', () => {

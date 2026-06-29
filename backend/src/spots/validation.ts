@@ -1,4 +1,4 @@
-import { validationError } from '../http/errors.js';
+import { validationError } from '@parking/core';
 
 /**
  * `/spots/availability` のクエリ検証。

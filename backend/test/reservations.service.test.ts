@@ -1,5 +1,5 @@
+import { AppError } from '@parking/core';
 import { describe, expect, it } from 'vitest';
-import { AppError } from '../src/http/errors.js';
 import type { ReservationRow } from '../src/reservations/repository.js';
 import { ReservationsService } from '../src/reservations/service.js';
 import type { CreateReservationInput, ReservationPatch } from '../src/reservations/validation.js';

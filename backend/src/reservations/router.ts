@@ -1,5 +1,5 @@
+import { type TxRunner, withSerializableTx } from '@parking/core';
 import { Router } from 'express';
-import { type TxRunner, withSerializableTx } from '../db.js';
 import { asyncHandler } from '../http/asyncHandler.js';
 import { getUserId, requireAuth } from '../http/requireAuth.js';
 import { type ReservationsRepository, SqlReservationsRepository } from './repository.js';

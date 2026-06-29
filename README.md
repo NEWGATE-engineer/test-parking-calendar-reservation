@@ -15,6 +15,7 @@
 
 | ディレクトリ | 内容 |
 | --- | --- |
+| [core/](core/) | ドメイン層共有パッケージ（`@parking/core`）— Azure / Express / IoT 非依存（ADR 0004） |
 | [backend/](backend/) | TypeScript REST API（App Service へデプロイ） |
 | [functions/](functions/) | Azure Functions（IoT メッセージ・タイマー走査・通知） |
 | [device-sim/](device-sim/) | 疑似 AUTOSTAND（`azure-iot-device` / Node.js） |

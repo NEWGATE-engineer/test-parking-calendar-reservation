@@ -1,0 +1,27 @@
+{
+  "name": "@parking/core",
+  "version": "1.0.0",
+  "description": "ドメイン層（Azure / Express / IoT 非依存）— DB 接続・トランザクション・設定・ドメイン例外・ポート interface",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "mssql": "^11.0.1"
+  },
+  "devDependencies": {
+    "@types/mssql": "^9.1.7",
+    "@types/node": "^25.9.3",
+    "typescript": "^6.0.3"
+  }
+}

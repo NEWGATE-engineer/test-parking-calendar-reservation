@@ -28,8 +28,11 @@
 docker compose up -d
 docker compose ps
 
-# backend（backend/ で）
-npx tsc                 # 型チェック / ビルド
+# 型チェック / ビルド（ルートで実行・npm workspaces）
+# core を先にビルドしてから backend / functions を型チェックする。
+# backend は @parking/core を import するため、core/dist が無いと型解決に失敗する。
+npm run typecheck       # build:core → backend / functions の typecheck
+npm run build           # core / backend / functions をまとめてビルド
 
 # functions（functions/ で）
 npm start               # prestart で clean+build 後 func start

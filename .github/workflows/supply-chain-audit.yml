@@ -11,7 +11,7 @@ on:
   pull_request:
     paths:
       - '**/package.json'
-      - '**/package-lock.json'
+      - 'package-lock.json'
       - '.github/workflows/supply-chain-audit.yml'
 
 # 読み取り専用。依存ツリーを監査するだけで PR への書き込みは一切しない。
@@ -26,14 +26,6 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      # 1 プロジェクトが落ちても他の監査結果を見たいので fail-fast しない。
-      fail-fast: false
-      matrix:
-        project: [backend, functions, device-sim]
-    defaults:
-      run:
-        working-directory: ${{ matrix.project }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +34,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+          # workspaces 化（ADR 0004）でルートの単一 lock に統合。1 回の install/audit で
+          # core/backend/functions/device-sim の依存ツリー全体を監査する。
+          cache-dependency-path: package-lock.json
 
       - name: Install (lockfile-faithful, no lifecycle scripts)
         # 監査目的のインストール。--ignore-scripts で pre/post/install を実行しない

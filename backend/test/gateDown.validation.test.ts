@@ -1,5 +1,5 @@
+import { AppError } from '@parking/core';
 import { describe, expect, it } from 'vitest';
-import { AppError } from '../src/http/errors.js';
 import { parseGateDownBody } from '../src/reservations/gateDown.validation.js';
 
 function expect422(body: unknown): void {

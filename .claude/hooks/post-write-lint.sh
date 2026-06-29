@@ -18,20 +18,29 @@ file_path="$(printf '%s' "$payload" | node -e 'let d="";process.stdin.on("data",
 # 壊れた入力なら何もしない（fail-open: フックでツール実行自体は壊さない）。
 [ -n "$file_path" ] || exit 0
 
-# 対象は backend の src/ または test/ 配下の .ts のみ（biome.json の includes と一致させる）。
-# それ以外（docs・mobile・functions・backend 直下など）は Biome の対象外なのでスキップ。
-case "$file_path" in
-  *backend/src/*.ts|*backend/test/*.ts) ;;
-  *) exit 0 ;;
-esac
+# 対象は Biome の includes（ルート biome.json）と一致する .ts のみ:
+# core/src・functions/src・backend/src・backend/test 配下（サブディレクトリ含む）。
+# それ以外（docs・mobile・各パッケージ直下の設定ファイルなど）は対象外なのでスキップ。
+# bash の case グロブ `*` は `/` をまたがないため core/src/reservations/service.ts の
+# ようなサブディレクトリにマッチしない。biome.json の includes は再帰グロブ
+# `core/src/**/*.ts` なので、こちらも grep -E の再帰パターンで揃える。
+echo "$file_path" | grep -qE '/(core|functions)/src/.*\.ts$|/backend/(src|test)/.*\.ts$' || exit 0
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
-cd "$root/backend" || exit 0
+
+# Biome バイナリを直接解決する。npm workspaces 化後は `npx biome` が cwd の
+# ローカル bin を見失い、レジストリの別パッケージ（"biome" 0.3.3）を取りに行って
+# 失敗することがあるため、hoist 済みの node_modules/.bin を直接参照する。
+# 見つからなければ fail-open（フックでツール実行自体は壊さない）。
+biome_bin="$root/node_modules/.bin/biome"
+[ -x "$biome_bin" ] || exit 0
+# biome.json はリポジトリルートにあるため、ルートで実行して includes 設定を効かせる。
+cd "$root" || exit 0
 
 # 単一ファイルだけを対象に Biome を実行（速い）。--write で整形・安全な修正・import 整列を
 # その場で適用する。--error-on-warnings で warning（未使用変数など）も非0扱いにし、
 # 修正で解消できない違反が残ると Biome は非0で終了する → exit 2 でモデルに返す。
-if ! output="$(npx --no-install biome check --write --error-on-warnings "$file_path" 2>&1)"; then
+if ! output="$("$biome_bin" check --write --error-on-warnings "$file_path" 2>&1)"; then
   # 残った違反をモデルに返す。exit 2 = PostToolUse のブロッキングフィードバック（stderr がモデルへ）。
   printf '%s\n' "$output" >&2
   echo "Biome の lint 違反が残っています。上記を修正してください（整形・安全な修正は自動適用済み）。" >&2

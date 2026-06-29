@@ -1,11 +1,26 @@
 {
+  // backend / core と同じ ESM・strict 設定に揃える（ADR 0004）。
+  // @azure/functions v4 は Node 18+ で ESM 起動に対応しているため、
+  // CommonJS から nodenext へ移行して @parking/core を import できるようにする。
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "es6",
+    "module": "nodenext",
+    "target": "esnext",
+    "lib": ["esnext"],
+    "types": ["node"],
     "outDir": "dist",
-    "rootDir": ".",
+    // core と同じく rootDir を src に揃える（ADR 0004）。
+    // src/functions/foo.ts → dist/functions/foo.js となり、package.json の
+    // "main": "dist/functions/*.js" と一致する。core が rootDir:"./src" 統一なので
+    // functions だけ rootDir:"." にすると出力パスがずれる隠れトラップになるため避ける。
+    "rootDir": "./src",
+    "esModuleInterop": true,
     "sourceMap": true,
-    "strict": false,
-    "esModuleInterop": true
-  }
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true
+  },
+  "include": ["src"]
 }

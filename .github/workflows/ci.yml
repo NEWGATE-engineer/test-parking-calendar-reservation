@@ -1,23 +1,28 @@
-name: CI (backend)
+name: CI
 
-# backend のソース/テスト/ビルド設定を変更した PR で、型チェック(tsc --noEmit)・
-# lint/format(biome)・テスト(vitest)を回す（リグレッション検知）。
+# core / backend / functions のソース・テスト・ビルド設定を変更した PR で、
+# 型チェック(tsc)・lint/format(biome)・テスト(vitest)を回す（リグレッション検知）。
 #
 # 位置づけ: これは @claude /review-pr（LLM レビュー・手動起動）とは独立した、
 # 「誰の commit でも・LLM 判断に依らず・自動で」効く決定論的な品質ゲート。
-# commit 前 Hook(.claude/hooks/pre-commit-quality.sh) は Claude が Bash で commit した
-# ときだけ発火するため、人間/IDE 経由の commit を取りこぼす。その穴を CI で塞ぐ。
+# commit 前 Hook(.claude/hooks/pre-commit-quality.sh) / PostToolUse Hook は Claude が
+# 編集したときだけ発火するため、人間/IDE 経由の commit を取りこぼす。その穴を CI で塞ぐ。
 #
-# 対象は当面 backend のみ。functions/ は test 基盤未整備、mobile/ は別ツールチェーン
-# (flutter analyze / flutter test) のため、それぞれ実装が立ち上がった時点で job を足す。
+# npm workspaces 化（ADR 0004）により、ルートの単一 package-lock.json で全パッケージを
+# 一括 install し、core をビルドしてから backend/functions を検証する。
+# mobile/ は別ツールチェーン(flutter)、device-sim/ はテスト未整備のため対象外（立ち上がり次第追加）。
 on:
   pull_request:
     paths:
+      - 'core/**'
       - 'backend/**'
+      - 'functions/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'biome.json'
       - '.github/workflows/ci.yml'
 
-# 最小権限を明示する（pull_request の既定でも read 相当だが、意図を明確にする）。
-# このジョブはコードを読んで検証するだけで、PR への書き込みは一切しない。
+# 最小権限を明示する。このジョブはコードを読んで検証するだけで、PR への書き込みはしない。
 permissions:
   contents: read
 
@@ -27,13 +32,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
+  verify:
     runs-on: ubuntu-latest
     # テストがハングしても runner を長時間占有しないよう上限を設ける（既定 6h は長すぎる）。
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -42,23 +44,29 @@ jobs:
         with:
           # ローカル開発は node 24 系だが、CI は LTS の 22 に固定して再現性を確保する。
           node-version: 22
-          # 依存キャッシュ。lockfile を鍵にするので backend/package-lock.json を明示する
-          # （working-directory はキャッシュ解決には効かないため）。
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          # workspaces はルートの単一 lock を鍵にする。
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies (clean, lockfile-faithful)
-        # npm install ではなく npm ci: package-lock.json に厳密一致させ、CI の再現性を担保する。
+        # npm ci: package-lock.json に厳密一致させ、全 workspace を一括インストールする。
         run: npm ci
 
-      - name: Type check (tsc --noEmit)
-        run: npm run typecheck
+      - name: Build core (型公開のため backend/functions の前に必要)
+        # backend/functions は @parking/core を node_modules 経由で参照するため、
+        # 先に core の dist/型定義を生成しておく。
+        run: npm run build:core
 
-      # Lint/format チェック(Biome)。commit 前 Hook / PostToolUse Hook は Claude の編集しか
-      # 捕まえないため、人間/IDE 経由の変更も含めて誰の commit でも lint を強制する土台。
-      # warning(未使用変数など)も --error-on-warnings で赤にする。
+      - name: Type check (backend)
+        run: npm run typecheck -w backend
+
+      - name: Type check (functions)
+        run: npm run typecheck -w functions
+
+      # Lint/format チェック(Biome)。ルート biome.json の includes で core/backend/functions を
+      # 一括検証する。warning(未使用変数など)も --error-on-warnings で赤にする。
       - name: Lint (biome)
         run: npm run lint
 
       - name: Test (vitest)
-        run: npm test
+        run: npm test -w backend

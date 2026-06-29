@@ -37,6 +37,10 @@ npm run build           # core / backend / functions をまとめてビルド
 # functions（functions/ で）
 npm start               # prestart で clean+build 後 func start
 
+# device-sim（device-sim/ で）
+npm start               # オフライン dry-run（IoT Hub 不要・テレメトリは標準出力）
+npm run start:env       # オンライン（.env の IOT_DEVICE_CONNECTION_STRING で IoT Hub 接続）
+
 # mobile（mobile/ で）
 flutter run -d web-server --web-port 5000 --dart-define=API_BASE_URL=http://localhost:3000
 ```

@@ -1,10 +1,12 @@
 {
   "name": "device-sim",
   "version": "1.0.0",
-  "description": "",
+  "description": "AUTOSTAND（ロック板）疑似デバイス。DOWN ダイレクトメソッド受信＋entry/exit/up テレメトリ手動送出（IoT 連携スライス）",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "start:env": "node --env-file=.env index.js",
+    "test": "echo \"No tests yet (device-sim)\""
   },
   "keywords": [],
   "author": "",

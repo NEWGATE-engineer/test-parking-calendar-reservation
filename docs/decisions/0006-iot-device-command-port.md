@@ -39,14 +39,14 @@ device-sim/README.md のメッセージ契約 §2 が source of truth: DOWN は 
 
 ### 5. 配線は接続文字列の有無で分岐（ローカル/テストは IoT なしで起動可）
 
-`backend/src/app.ts` は `IOT_HUB_CONNECTION_STRING` があれば実ポートを注入し、無ければ `notConfiguredDeviceCommandPort` を使う。これによりローカル開発・テストは IoT 設定なしで起動でき、gate-down を呼んだ時だけ明示的に失敗する。接続文字列は `config.iot.hubConnectionString` で**遅延評価**（functions はテレメトリを Event Hub トリガで受け `IOT_HUB_EVENTS` を使うため、サービス接続文字列は不要。jwt.secret と同じ理由で eager 必須化しない）。
+`backend/src/app.ts` は `config.iot.isConfigured`（接続文字列の有無を throw せず判定）が真なら実ポートを注入し、偽なら `notConfiguredDeviceCommandPort` を使う。これによりローカル開発・テストは IoT 設定なしで起動でき、gate-down を呼んだ時だけ明示的に失敗する。接続文字列の取得は `config.iot.hubConnectionString` で**遅延評価**（functions はテレメトリを Event Hub トリガで受け `IOT_HUB_EVENTS` を使うため、サービス接続文字列は不要。jwt.secret と同じ理由で eager 必須化しない）。環境変数名 `IOT_HUB_CONNECTION_STRING` は config に集約し、app.ts から直接参照しない（リネーム時の漏れを防ぐ）。
 
 ## 影響
 
 - 追加: `backend/src/reservations/iotDeviceCommandPort.ts`、`backend/test/iotDeviceCommandPort.test.ts`（6 ケース）。
-- 変更: `backend/src/app.ts`（接続文字列有無で実ポート/スタブを分岐）、`core/src/config.ts`（`config.iot.hubConnectionString` 遅延 getter・`methodTimeoutSeconds`）、`device-sim/README.md`（(c) を実装済みに）。
+- 変更: `backend/src/app.ts`（`config.iot.isConfigured` で実ポート/スタブを分岐）、`core/src/config.ts`（`config.iot` に `hubConnectionString` 遅延 getter・`isConfigured`・`methodTimeoutSeconds`）、`device-sim/README.md`（(c) を実装済みに）、`docs/README.md`（ADR 一覧）、`docs/setup/…環境構築手順書.md` §8-2（backend/.env テンプレートに IoT 変数追記）。
 - 依存追加: `backend` に `azure-iothub`（サービス SDK・型同梱）。`npm audit --audit-level=high` は pass（high/critical なし）。
-- App Settings（backend 実環境）: `IOT_HUB_CONNECTION_STRING`（サービスポリシー接続文字列）、任意で `IOT_METHOD_TIMEOUT_SEC`（既定 30）。
+- App Settings / `.env`（backend 実環境）: `IOT_HUB_CONNECTION_STRING`（サービスポリシー接続文字列）、任意で `IOT_METHOD_TIMEOUT_SEC`（既定 30）。
 - DDL 変更なし。OpenAPI 変更なし（gate-down の振る舞い・契約は不変）。
 
 ## 代替案

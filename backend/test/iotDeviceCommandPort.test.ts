@@ -69,6 +69,18 @@ describe('IotDeviceCommandPort.sendDown', () => {
     });
   });
 
+  it('デバイス未接続（DeviceNotConnectedError）→ timeout に寄せる', async () => {
+    const invoker = makeInvoker(async () => {
+      throw namedError('DeviceNotConnectedError');
+    });
+    const port = new IotDeviceCommandPort(invoker, TIMEOUT);
+
+    await expect(port.sendDown('device-1', 'req-1')).resolves.toEqual({
+      ok: false,
+      reason: 'timeout',
+    });
+  });
+
   it('名前に Timeout を含むエラーも timeout 扱い', async () => {
     const invoker = makeInvoker(async () => {
       throw namedError('OperationTimeoutError');

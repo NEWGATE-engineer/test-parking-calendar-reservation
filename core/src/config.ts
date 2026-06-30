@@ -112,6 +112,17 @@ export const config = {
     get hubConnectionString(): string {
       return required('IOT_HUB_CONNECTION_STRING');
     },
+    /**
+     * 実 DeviceCommandPort を構築できる設定（接続文字列）があるか。
+     *
+     * `hubConnectionString` は未設定時に throw するため、配線（app.ts）が「実装 or スタブ」を
+     * 選ぶ判定には使えない。env 名をここに集約し throw せず真偽だけ返す（呼び出し側で
+     * 環境変数名を直接参照する二重管理を避ける）。
+     */
+    get isConfigured(): boolean {
+      const v = process.env.IOT_HUB_CONNECTION_STRING;
+      return v !== undefined && v !== '';
+    },
     /** DOWN ダイレクトメソッドの応答待ち／接続タイムアウト秒数。仮値（§12 未確定）。 */
     methodTimeoutSeconds: num('IOT_METHOD_TIMEOUT_SEC', 30),
   },

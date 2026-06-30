@@ -21,3 +21,6 @@ mobile/.flutter-plugins*
 
 # その他
 .DS_Store
+
+# ローカル学習用資料（コミットしない）
+docs-local/

@@ -98,4 +98,21 @@ export const config = {
     /** last_seen_at がこの分数以内なら健全とみなす。仮: 10分。 */
     healthThresholdMinutes: num('DEVICE_HEALTH_THRESHOLD_MIN', 10),
   },
+  /** IoT Hub サービス連携（DOWN ダイレクトメソッドの invoke）。backend のみ使用。 */
+  iot: {
+    /**
+     * IoT Hub サービス接続文字列（サービス API ポリシー）。DOWN ダイレクトメソッドの
+     * 呼び出し（`Client.invokeDeviceMethod`）に使う。
+     *
+     * **遅延評価**: jwt.secret と同じく getter にして「実際に IoT 接続を張る時」だけ必須化する。
+     * config は functions（テレメトリ受信は Event Hub トリガで `IOT_HUB_EVENTS` を使い、
+     * サービス接続文字列は不要）とも共有する。eager に `required` すると functions の起動にも
+     * 無関係な値が必要になるため、backend が実 DeviceCommandPort を構築する時だけ必須化する。
+     */
+    get hubConnectionString(): string {
+      return required('IOT_HUB_CONNECTION_STRING');
+    },
+    /** DOWN ダイレクトメソッドの応答待ち／接続タイムアウト秒数。仮値（§12 未確定）。 */
+    methodTimeoutSeconds: num('IOT_METHOD_TIMEOUT_SEC', 30),
+  },
 } as const;

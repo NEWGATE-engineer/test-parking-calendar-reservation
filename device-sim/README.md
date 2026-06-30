@@ -80,8 +80,12 @@ device→cloud（D2C）メッセージ。本文は JSON（`contentType: applicat
 - **冪等性**: 同一 `requestId` の再送は板を再発火せず成功を返す（`replayed: true`）。物理安全上もっとも重要（ADR 0003 §3 の「success のみ厳密復元」とデバイス側で整合）。処理済み requestId は FIFO 上限（`MAX_HANDLED_DOWNS=1000`・仮値）で保持しメモリ増加を抑える。
 - **タイムアウト**: `mode timeout` のとき device は応答しない。呼び出し側（backend `DeviceCommandPort`）はタイムアウトし `504 timeout`（retryable）にマップする。
 
-## このスライスの範囲外（次段以降）
+## 関連スライスの実装状況
 
-- (b) functions のテレメトリ受信ハンドラ（onEntry/onExit/onPlateUp）— 別 PR。
-- (c) backend の実 `DeviceCommandPort` 実装（IoT Hub サービス SDK で `down` を invoke）— 別 PR。
+- (b) functions のテレメトリ受信ハンドラ（onEntry/onExit/onPlateUp）— 実装済み（[ADR 0005](../docs/decisions/0005-telemetry-ingestion.md)）。
+- (c) backend の実 `DeviceCommandPort` 実装（IoT Hub サービス SDK `azure-iothub` で `down` を invoke）— 実装済み（[ADR 0006](../docs/decisions/0006-iot-device-command-port.md)）。本契約 §2 に一致。
+
+### まだ範囲外（次段以降）
+
 - §5.3 安全インターロックの自動 UP ロジック、満空センサーの自動検知。
+- タイマー（ノーショー検知・超過検知・自動完了）。

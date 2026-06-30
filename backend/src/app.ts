@@ -1,7 +1,9 @@
+import { notConfiguredDeviceCommandPort } from '@parking/core';
 import express, { type Express } from 'express';
 import { createAuthRouter } from './auth/router.js';
 import { errorHandler } from './http/errorHandler.js';
 import { createGateDownRouter } from './reservations/gateDown.router.js';
+import { createIotDeviceCommandPort } from './reservations/iotDeviceCommandPort.js';
 import { createReservationsRouter } from './reservations/router.js';
 import { createSpotsRouter } from './spots/router.js';
 
@@ -41,8 +43,12 @@ export function buildApp(): Express {
   app.use('/reservations', createReservationsRouter());
 
   // 予約の DOWN 指示（入庫）。CRUD と依存が異なるため同じマウントに別ルーターで併設。
-  // 既定では DeviceCommandPort が未設定（IoT 連携スライスで実装を注入）。
-  app.use('/reservations', createGateDownRouter());
+  // IoT Hub 接続文字列があれば実 DeviceCommandPort（azure-iothub）を注入。無ければ未設定スタブ
+  // （ローカル開発・テストは IoT なしで起動でき、gate-down 呼び出し時のみ明示的に失敗する）。
+  const devicePort = process.env.IOT_HUB_CONNECTION_STRING
+    ? createIotDeviceCommandPort()
+    : notConfiguredDeviceCommandPort;
+  app.use('/reservations', createGateDownRouter(undefined, devicePort));
 
   // エラーハンドラは必ず最後（前段ハンドラの例外を集約して整形する）
   app.use(errorHandler);

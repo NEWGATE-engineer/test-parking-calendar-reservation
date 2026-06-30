@@ -69,10 +69,16 @@ export interface LifecycleRepository {
   findCompletable(now: Date): Promise<CompletableReservation[]>;
   /**
    * 予約を条件付き UPDATE で completed にする（active/overstay のときだけ）。
+   * @param tx サービスが張った SERIALIZABLE トランザクション
+   * @param reservationId 対象予約 ID
    * @returns 更新行数（1=確定した勝者 / 0=既に確定 or 対象外）。1 のときだけ Fee を INSERT する。
    */
   completeReservation(tx: Tx, reservationId: string): Promise<number>;
-  /** 確定料金を Fee に INSERT する（status='confirmed'）。completeReservation が 1 のときだけ呼ぶ。 */
+  /**
+   * 確定料金を Fee に INSERT する（status='confirmed'）。completeReservation が 1 のときだけ呼ぶ。
+   * @param tx サービスが張った SERIALIZABLE トランザクション
+   * @param input 確定料金（予約 ID・枠/超過・算出時刻）
+   */
   insertFee(tx: Tx, input: FeeInput): Promise<void>;
 }
 
@@ -86,9 +92,11 @@ export class SqlLifecycleRepository implements LifecycleRepository {
       .input('now', mssql.DateTime2(3), now)
       .input('grace', mssql.Int, graceMinutes)
       .query(
+        // start_time に関数を当てると索引シークが効かない（non-sargable）。@now 側を変換して
+        // 「start_time < now - 猶予」の形にし、IX_Reservation_noshow のシークを効かせる。
         `UPDATE Reservation SET status = 'no_show'
          WHERE status = 'reserved'
-           AND DATEADD(MINUTE, @grace, start_time) < @now
+           AND start_time < DATEADD(MINUTE, -@grace, @now)
            AND NOT EXISTS (
              SELECT 1 FROM UsageRecord u WHERE u.reservation_id = Reservation.id
            )`,

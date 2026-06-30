@@ -5,7 +5,7 @@ import { fakeTxRunner } from './helpers/mockReservationsRepo.js';
 
 /**
  * LifecycleService.sweep の検証。DB なしでモック repo＋偽 tx ランナーを注入し、
- * 3 遷移の実行・件数集約・autoComplete の Fee 確定（勝者のみ）・失敗継続を確認する。
+ * 3 遷移の実行・件数集約・autoComplete の Fee 確定（勝者のみ）・失敗継続・例外伝播を確認する。
  *
  * 仮の料金設定（config 既定）: 枠 100円/30分・超過 100円/30分。予約枠は 10:00-11:00（60分）= 200円。
  */
@@ -17,21 +17,19 @@ describe('LifecycleService.sweep', () => {
     const repo = makeMockLifecycleRepo();
     const result = await new LifecycleService(repo, fakeTxRunner).sweep(NOW);
 
-    expect(result).toEqual({ noShow: 0, overstay: 0, completed: 0, feesInserted: 0, failures: [] });
-    // 走査順: noShow → overstay → completable
-    expect(repo.markNoShows).toHaveBeenCalledOnce();
-    expect(repo.markOverstays).toHaveBeenCalledOnce();
-    expect(repo.findCompletable).toHaveBeenCalledOnce();
+    expect(result).toEqual({ noShow: 0, overstay: 0, completed: 0, failures: [] });
   });
 
-  it('noShow / overstay の set-based 件数をそのまま集約する', async () => {
+  it('noShow / overstay の set-based 件数を集約し、3 操作すべて同一 now で動く', async () => {
     const repo = makeMockLifecycleRepo({ noShowRows: 3, overstayRows: 2 });
     const result = await new LifecycleService(repo, fakeTxRunner).sweep(NOW);
 
     expect(result.noShow).toBe(3);
     expect(result.overstay).toBe(2);
-    // ノーショー猶予が markNoShows に渡る（config 既定 30分）
+    // 3 操作が同一の now（と猶予 config 既定 30分）で呼ばれる
     expect(repo.markNoShows).toHaveBeenCalledWith(NOW, 30);
+    expect(repo.markOverstays).toHaveBeenCalledWith(NOW);
+    expect(repo.findCompletable).toHaveBeenCalledWith(NOW);
   });
 
   it('autoComplete: 勝者は completed＋Fee を確定する（終了後の通常退出＝超過0）', async () => {
@@ -43,7 +41,6 @@ describe('LifecycleService.sweep', () => {
     const result = await new LifecycleService(repo, fakeTxRunner).sweep(NOW);
 
     expect(result.completed).toBe(1);
-    expect(result.feesInserted).toBe(1);
     const feeArg = repo.insertFee.mock.calls[0][1];
     expect(feeArg).toMatchObject({
       reservationId: 'resv-1',
@@ -60,9 +57,9 @@ describe('LifecycleService.sweep', () => {
     });
     const result = await new LifecycleService(repo, fakeTxRunner).sweep(NOW);
 
+    expect(result.completed).toBe(1);
     const feeArg = repo.insertFee.mock.calls[0][1];
     expect(feeArg).toMatchObject({ slotFee: 200, overstayFee: 200 });
-    expect(result.feesInserted).toBe(1);
   });
 
   it('autoComplete: 競合負け（completeReservation=0）は Fee を INSERT しない', async () => {
@@ -73,7 +70,6 @@ describe('LifecycleService.sweep', () => {
     const result = await new LifecycleService(repo, fakeTxRunner).sweep(NOW);
 
     expect(result.completed).toBe(0);
-    expect(result.feesInserted).toBe(0);
     expect(repo.insertFee).not.toHaveBeenCalled();
   });
 
@@ -93,7 +89,30 @@ describe('LifecycleService.sweep', () => {
     const result = await new LifecycleService(repo, fakeTxRunner).sweep(NOW);
 
     expect(result.completed).toBe(1);
-    expect(result.feesInserted).toBe(1);
     expect(result.failures).toEqual([{ reservationId: 'resv-ng', error: 'deadlock' }]);
+  });
+
+  it('autoComplete: Error 以外の throw でも failures.error を string に保つ', async () => {
+    const repo = makeMockLifecycleRepo({
+      completable: [completable('resv-1', new Date('2026-06-25T10:30:00Z'))],
+    });
+    // 文字列を throw（unknown 経路の堅牢性確認）
+    repo.completeReservation.mockRejectedValue('raw string failure');
+
+    const result = await new LifecycleService(repo, fakeTxRunner).sweep(NOW);
+
+    expect(result.failures).toEqual([{ reservationId: 'resv-1', error: 'raw string failure' }]);
+  });
+
+  // set-based 操作の throw は failures に握らず sweep 全体を reject する（@throws 契約・Functions 再試行の根拠）
+  it.each([
+    ['markNoShows', (r: ReturnType<typeof makeMockLifecycleRepo>) => r.markNoShows],
+    ['markOverstays', (r: ReturnType<typeof makeMockLifecycleRepo>) => r.markOverstays],
+    ['findCompletable', (r: ReturnType<typeof makeMockLifecycleRepo>) => r.findCompletable],
+  ])('%s が throw すると sweep 全体が reject する', async (_name, pick) => {
+    const repo = makeMockLifecycleRepo();
+    pick(repo).mockRejectedValue(new Error('db error'));
+
+    await expect(new LifecycleService(repo, fakeTxRunner).sweep(NOW)).rejects.toThrow('db error');
   });
 });

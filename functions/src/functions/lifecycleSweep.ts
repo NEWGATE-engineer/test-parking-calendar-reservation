@@ -33,7 +33,6 @@ export async function onLifecycleSweep(_timer: Timer, context: InvocationContext
       noShow: result.noShow,
       overstay: result.overstay,
       completed: result.completed,
-      feesInserted: result.feesInserted,
       failed: result.failures.length,
     })}`,
   );

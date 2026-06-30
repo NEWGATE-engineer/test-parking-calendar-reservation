@@ -25,10 +25,11 @@ export interface SweepResult {
   noShow: number;
   /** overstay へ遷移した件数。 */
   overstay: number;
-  /** completed へ確定した件数。 */
+  /**
+   * completed へ確定し確定料金を INSERT した件数。
+   * 完了と Fee INSERT は同一トランザクションで原子的なので「完了＝必ず課金」。別カウンターは持たない。
+   */
   completed: number;
-  /** Fee を INSERT した件数（completed の勝者と一致）。 */
-  feesInserted: number;
   /** autoComplete の確定に失敗した予約（1 件失敗しても走査は継続し、次走査で再試行）。 */
   failures: { reservationId: string; error: string }[];
 }
@@ -60,16 +61,17 @@ export class LifecycleService {
     // 3) 自動完了。Fee 確定があるので候補を 1 件ずつ独立トランザクションで処理する。
     const candidates = await this.repo.findCompletable(now);
     let completed = 0;
-    let feesInserted = 0;
     const failures: { reservationId: string; error: string }[] = [];
 
     for (const c of candidates) {
       try {
         // 条件付き UPDATE で completed にできた勝者だけが Fee を INSERT（UQ_Fee_resv 二重防止）。
         // read→write を SERIALIZABLE で束ね、テレメトリ即時確定との競合でも勝者は 1 つに収束する。
-        const result = await this.runTx(async (tx) => {
+        // completeReservation と insertFee は同一 tx なので、insertFee が throw すれば UPDATE も
+        // ロールバックされる＝「完了したが Fee 未挿入」は構造上発生しない（完了＝必ず課金）。
+        const charged = await this.runTx(async (tx) => {
           const rows = await this.repo.completeReservation(tx, c.id);
-          if (rows !== 1) return { completed: false, feeInserted: false };
+          if (rows !== 1) return false;
           const fee = computeCompletionFee(
             c.start_time,
             c.end_time,
@@ -82,16 +84,19 @@ export class LifecycleService {
             overstayFee: fee.overstayFee,
             calculatedAt: now,
           });
-          return { completed: true, feeInserted: true };
+          return true;
         });
-        if (result.completed) completed++;
-        if (result.feeInserted) feesInserted++;
+        if (charged) completed++;
       } catch (err) {
         // 1 件の確定失敗は走査全体を止めない（安全網なので次回走査で再試行できる）。
-        failures.push({ reservationId: c.id, error: (err as Error).message });
+        // err は unknown。Error 以外（文字列 throw 等）でも message を string に保つ。
+        failures.push({
+          reservationId: c.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
-    return { noShow, overstay, completed, feesInserted, failures };
+    return { noShow, overstay, completed, failures };
   }
 }

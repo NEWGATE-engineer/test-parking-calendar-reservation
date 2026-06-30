@@ -47,7 +47,7 @@ autoComplete の 1 件が DB エラーで失敗しても他を止めず、`Sweep
 ## 影響
 
 - 追加: `core/src/lifecycle/{repository,service,index}.ts`、`functions/src/functions/lifecycleSweep.ts`、`backend/test/lifecycle.service.test.ts`＋`helpers/mockLifecycleRepo.ts`、本 ADR。
-- 変更: `core/src/config.ts`（`reservation.noShowGraceMinutes` 追加）、`core/src/index.ts`（lifecycle バレル公開）、`docs/README.md`（ADR 一覧）。
+- 変更: `core/src/config.ts`（`reservation.noShowGraceMinutes` 追加）、`core/src/index.ts`（lifecycle バレル公開）、`docs/README.md`（ADR 一覧）、`docs/architecture/バックエンド処理一覧（トリガ別）.md`（C 節に実装メモ＋本 ADR 参照を追記）。
 - App Settings（functions 実環境）: 任意 `LIFECYCLE_SWEEP_SCHEDULE`（既定 `0 */5 * * * *`）。
 - DDL 変更なし（既存のフィルタ索引を利用）。
 

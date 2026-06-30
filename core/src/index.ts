@@ -16,6 +16,8 @@ export * from './config.js';
 export * from './db.js';
 // ドメイン例外 AppError と Error スキーマ・生成ショートカット
 export * from './errors.js';
+// 予約ライフサイクル定期走査（detectNoShow / detectOverstay / autoComplete・タイマー）
+export * from './lifecycle/index.js';
 // 予約ドメイン（repository / service / fee / validation / gate-down）
 export * from './reservations/index.js';
 // 区画ドメイン（repository / service / availability / validation）

@@ -92,6 +92,12 @@ export const config = {
      * この額。確定するまで予約枠単価と同額を既定にしておく。
      */
     overstayUnitPriceJpy: num('RESERVATION_OVERSTAY_UNIT_PRICE_JPY', 100),
+    /**
+     * ノーショー猶予（分）。開始時刻からこの分数を過ぎても未入庫ならノーショー確定（§6・§12 #3）。
+     * 仮: 30分。入庫待ちタイムアウト（デバイス側・仮5分）より長く保つこと（逆転すると
+     * 「DOWN 試行で失敗したのに先にノーショー確定」という妙な順序になる）。
+     */
+    noShowGraceMinutes: num('RESERVATION_NO_SHOW_GRACE_MIN', 30),
   },
   /** デバイス健全性（§8・§12 #14）。仮値。 */
   device: {

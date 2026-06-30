@@ -15,6 +15,7 @@
 	"author": "",
 	"license": "ISC",
 	"dependencies": {
+		"azure-iothub": "^1.16.6",
 		"bcryptjs": "^3.0.3",
 		"express": "^5.2.1",
 		"express-rate-limit": "^8.5.2",

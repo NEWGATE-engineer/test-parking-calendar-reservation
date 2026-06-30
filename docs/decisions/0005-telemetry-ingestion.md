@@ -39,7 +39,7 @@ ProcessedEvent(eventId) のような重複排除テーブルは MVP では作ら
 
 ### 5. functions は薄いアダプタ・CommandLog に触らない
 
-functions は「受信→検証（`parseTelemetryEvent`）→ディスパッチ→ログ」に徹し、ドメインは `@parking/core` の `TelemetryService` が持つ。
+functions は Event Hub トリガの配線に徹し（`onTelemetry` がメッセージ配列を `processTelemetryBatch` に委譲するだけ）、「受信→検証（`parseTelemetryEvent`）→ディスパッチ→ログ」の取り込みオーケストレーションと poison／再試行制御は `@parking/core` の `processTelemetryBatch`（Azure 非依存で単体テスト可能）に置く。状態遷移などのドメインは `TelemetryService` が持つ。
 
 - **poison メッセージ**（形不正）はログのみで読み飛ばす（throw しない＝無限再試行を避ける）。
 - **一時障害**（DB 等）は throw して Functions の再試行に委ねる（冪等なので再処理は安全）。
@@ -47,7 +47,7 @@ functions は「受信→検証（`parseTelemetryEvent`）→ディスパッチ�
 
 ### 6. レイヤ配置
 
-新規 IoT ロジックは最初から core に置く（[[0004-monorepo-core-extraction]] の方針）。`core/src/telemetry/{types,validation,repository,service,index}.ts`。functions は `functions/src/functions/telemetry.ts`（Event Hub トリガ）。
+新規 IoT ロジックは最初から core に置く（[[0004-monorepo-core-extraction]] の方針）。`core/src/telemetry/{types,validation,repository,service,ingest,index}.ts`。`ingest.ts`（`processTelemetryBatch`）が取り込みオーケストレーション＋poison／再試行制御を担い、Azure 非依存で単体テストできる。functions は `functions/src/functions/telemetry.ts`（Event Hub トリガ配線のみ）。
 
 ### 7. config の調整
 

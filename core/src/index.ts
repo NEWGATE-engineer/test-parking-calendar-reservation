@@ -20,3 +20,5 @@ export * from './errors.js';
 export * from './reservations/index.js';
 // 区画ドメイン（repository / service / availability / validation）
 export * from './spots/index.js';
+// テレメトリ処理ドメイン（onEntry / onExit / onPlateUp・IoT 連携）
+export * from './telemetry/index.js';

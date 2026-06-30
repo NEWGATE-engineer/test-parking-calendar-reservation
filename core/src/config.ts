@@ -55,8 +55,18 @@ export const config = {
   /** SQL Server 接続文字列（mssql 形式）。 */
   sqlConnectionString: required('SQL_CONNECTION_STRING'),
   jwt: {
-    /** アクセストークンの HS256 署名鍵。リポジトリに置かず .env / Key Vault から。 */
-    secret: required('JWT_SECRET'),
+    /**
+     * アクセストークンの HS256 署名鍵。リポジトリに置かず .env / Key Vault から。
+     *
+     * **遅延評価**: getter にして「実際に署名/検証する時」に初めて必須化する。
+     * config は backend（認証あり）と functions（IoT テレメトリ・認証なし）の双方が
+     * import する共有モジュールだが、functions は JWT を一切使わない。eager に
+     * `required('JWT_SECRET')` すると functions の起動にも無関係な JWT_SECRET が必要に
+     * なってしまうため、auth が触れた時だけ必須化する（SQL 接続文字列は両者が使うので eager のまま）。
+     */
+    get secret(): string {
+      return required('JWT_SECRET');
+    },
     /** アクセストークン有効秒数。仮: 15分。 */
     accessTtlSec: num('JWT_ACCESS_TTL_SEC', 15 * 60),
     /** リフレッシュトークン有効秒数。仮: 14日。 */
@@ -77,6 +87,11 @@ export const config = {
     unitPriceJpy: num('RESERVATION_UNIT_PRICE_JPY', 100),
     /** 課金単位（分）。仮: 30分。 */
     unitMinutes: num('RESERVATION_UNIT_MINUTES', 30),
+    /**
+     * 超過料金の単価（§12 #1・F5-3「超過分のみ実時間で追加課金」）。仮: unitMinutes ごとに
+     * この額。確定するまで予約枠単価と同額を既定にしておく。
+     */
+    overstayUnitPriceJpy: num('RESERVATION_OVERSTAY_UNIT_PRICE_JPY', 100),
   },
   /** デバイス健全性（§8・§12 #14）。仮値。 */
   device: {

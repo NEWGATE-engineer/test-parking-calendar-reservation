@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../auth/auth_controller.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
+import '../reservations/reserve_screen.dart';
 import '../spots/home_screen.dart';
 
 /// 認証状態と現在ロケーションから、リダイレクト先（不要なら null）を決める純粋関数。
@@ -43,6 +44,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+      GoRoute(path: '/reserve', builder: (_, _) => const ReserveScreen()),
     ],
   );
 });

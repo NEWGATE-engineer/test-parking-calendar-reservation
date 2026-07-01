@@ -23,6 +23,11 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('区画の空き状況'),
         actions: [
           IconButton(
+            tooltip: '予約一覧',
+            icon: const Icon(Icons.list_alt),
+            onPressed: () => context.push('/reservations'),
+          ),
+          IconButton(
             tooltip: 'ログアウト',
             icon: const Icon(Icons.logout),
             onPressed: () => ref.read(authControllerProvider.notifier).logout(),

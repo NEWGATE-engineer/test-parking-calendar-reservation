@@ -56,4 +56,59 @@ void main() {
           .having((e) => e.code, 'code', 'conflict_overlap')),
     );
   });
+
+  ReservationsRepository repoWith(ResponseBody Function(RequestOptions) handler) {
+    return ReservationsRepository(
+      Dio(BaseOptions(baseUrl: 'http://test'))..httpClientAdapter = FakeAdapter(handler),
+    );
+  }
+
+  test('fetchReservations 200: 配列を Reservation に変換', () async {
+    final repo = repoWith((_) => jsonResponse([
+          {
+            'id': 'r1',
+            'spot_id': 's1',
+            'start_time': '2026-07-02T01:00:00.000Z',
+            'end_time': '2026-07-02T02:00:00.000Z',
+            'status': 'reserved',
+            'created_at': '2026-07-01T00:00:00.000Z',
+          },
+        ], 200));
+
+    final list = await repo.fetchReservations();
+    expect(list, hasLength(1));
+    expect(list[0].status, 'reserved');
+  });
+
+  test('cancel 204: 例外を投げない / 409 は not_cancelable を正規化', () async {
+    await repoWith((_) => jsonResponse(null, 204)).cancel('r1');
+
+    await expectLater(
+      repoWith((_) => jsonResponse({'code': 'not_cancelable', 'message': 'x'}, 409)).cancel('r1'),
+      throwsA(isA<ApiException>().having((e) => e.code, 'code', 'not_cancelable')),
+    );
+  });
+
+  test('gateDown 200: request_id を送り command_id を返す', () async {
+    late RequestOptions captured;
+    final repo = repoWith((options) {
+      captured = options;
+      return jsonResponse({'result': 'down', 'command_id': 'cmd-1'}, 200);
+    });
+
+    final res = await repo.gateDown(id: 'r1', requestId: 'req-1');
+    expect(res.commandId, 'cmd-1');
+    expect((captured.data as Map)['request_id'], 'req-1');
+    expect(captured.path, '/reservations/r1/gate-down');
+  });
+
+  test('gateDown 504 timeout: retryable な ApiException', () async {
+    await expectLater(
+      repoWith((_) => jsonResponse({'code': 'timeout', 'message': '無応答', 'retryable': true}, 504))
+          .gateDown(id: 'r1', requestId: 'req-1'),
+      throwsA(isA<ApiException>()
+          .having((e) => e.code, 'code', 'timeout')
+          .having((e) => e.retryable, 'retryable', true)),
+    );
+  });
 }

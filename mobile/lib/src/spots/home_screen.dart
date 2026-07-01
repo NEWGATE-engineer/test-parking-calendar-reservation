@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../auth/auth_controller.dart';
 import '../core/api_exception.dart';
@@ -27,6 +28,11 @@ class HomeScreen extends ConsumerWidget {
             onPressed: () => ref.read(authControllerProvider.notifier).logout(),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/reserve'),
+        icon: const Icon(Icons.add),
+        label: const Text('予約する'),
       ),
       body: RefreshIndicator(
         // プルダウンで再取得（FutureProvider を無効化して再フェッチ）。

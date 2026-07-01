@@ -40,4 +40,39 @@ void main() {
           .having((e) => e.code, 'code', 'unauthorized')),
     );
   });
+
+  group('fetchAvailability', () {
+    test('200: UTC クエリで送り、SpotAvailability に変換する', () async {
+      late RequestOptions captured;
+      final repo = SpotsRepository(dioWith((options) {
+        captured = options;
+        return jsonResponse([
+          {'spot_id': 's1', 'name': 'A', 'available': true, 'reason': 'ok'},
+          {'spot_id': 's2', 'name': 'B', 'available': false, 'reason': 'buffer'},
+        ], 200);
+      }));
+
+      // ローカル時刻で渡しても UTC に正規化されて送られる
+      final start = DateTime.utc(2026, 7, 2, 1);
+      final end = DateTime.utc(2026, 7, 2, 2);
+      final items = await repo.fetchAvailability(start, end);
+
+      expect(items, hasLength(2));
+      expect(items[0].available, true);
+      expect(items[1].available, false);
+      expect(captured.queryParameters['start'], '2026-07-02T01:00:00.000Z');
+      expect(captured.queryParameters['end'], '2026-07-02T02:00:00.000Z');
+    });
+
+    test('422: ApiException に正規化して投げる', () async {
+      final repo = SpotsRepository(dioWith(
+        (_) => jsonResponse({'code': 'validation_error', 'message': 'start>=end'}, 422),
+      ));
+
+      await expectLater(
+        repo.fetchAvailability(DateTime.utc(2026), DateTime.utc(2026)),
+        throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 422)),
+      );
+    });
+  });
 }

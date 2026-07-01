@@ -111,13 +111,14 @@ class AuthInterceptor extends InterceptorsWrapper {
 /// ベース URL・JSON ヘッダ・認証インターセプタを備える。認証エンドポイント（register/login/
 /// refresh）は security 不要だが、Bearer が付いても無害なので一律付与する。
 final dioProvider = Provider<Dio>((ref) {
-  final options = BaseOptions(
-    baseUrl: AppConfig.apiBaseUrl,
-    headers: {'Content-Type': 'application/json'},
-  );
-  final dio = Dio(options);
-  // リフレッシュ／リトライ用の素の dio（インターセプタ無し）。
-  final refreshClient = Dio(options);
+  BaseOptions baseOptions() => BaseOptions(
+        baseUrl: AppConfig.apiBaseUrl,
+        headers: {'Content-Type': 'application/json'},
+      );
+  final dio = Dio(baseOptions());
+  // リフレッシュ／リトライ用の素の dio（インターセプタ無し）。BaseOptions は共有せず別インスタンスに
+  // し、一方の options.headers 変更が他方へ波及するのを防ぐ。
+  final refreshClient = Dio(baseOptions());
   dio.interceptors.add(
     AuthInterceptor(
       storage: ref.read(tokenStorageProvider),

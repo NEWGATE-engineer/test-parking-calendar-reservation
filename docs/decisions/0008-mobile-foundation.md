@@ -46,7 +46,10 @@
 ## フォローアップ / 残課題
 
 - モバイル CI（analyze/test）の追加。
-- refresh の同時多発時の直列化は `QueuedInterceptorsWrapper` で吸収しているが、負荷時の挙動は実測していない。
+- 同時多発 401 の多重 refresh は、進行中の refresh を 1 本の `Future<bool>` として共有する
+  **in-flight de-duplication**（`AuthInterceptor._inflightRefresh`）で防ぐ。`/auth/refresh` は 1 回だけ
+  呼ばれ、リフレッシュトークンのローテーション（失効済み再使用→family 系統失効）による強制再ログインを
+  避ける。単体テストで「同時 401 → refresh 1 回」を検証済み。負荷時の挙動は未実測。
 - M2 以降で予約作成・詳細・履歴を実装（本 ADR のスライス計画に従う）。
 
 ## 代替案

@@ -13,23 +13,31 @@ import 'token_storage.dart';
 ///   再発行に失敗（＝セッション失効）したらトークンを破棄し、認証状態を未認証へ倒す
 ///   （ルーターがログイン画面へリダイレクトする）。
 ///
-/// `QueuedInterceptorsWrapper` を使うことで、同時多発の 401 のエラー処理を直列化し、
-/// リフレッシュが何本も走るのを避ける。
-class AuthInterceptor extends QueuedInterceptorsWrapper {
+/// **多重リフレッシュ防止**: 同時に複数リクエストが 401 になっても、進行中の refresh 呼び出しを
+/// 1 本の Future として共有（in-flight de-duplication）する。これにより `/auth/refresh` は 1 回だけ
+/// 呼ばれ、リフレッシュトークンのローテーション（失効済み再使用→family 系統失効）による意図しない
+/// 強制再ログインを防ぐ。
+///
+/// リフレッシュ／リトライは**インターセプタを持たない専用の dio**（[refreshClient]）で行う
+/// （自インターセプタを再帰的に通さないため）。テストではこの refreshClient にモックアダプタを
+/// 差し込んで 401→refresh→retry の分岐を検証できる。
+class AuthInterceptor extends InterceptorsWrapper {
   AuthInterceptor({
     required this.storage,
-    required this.baseUrl,
+    required this.refreshClient,
     required this.onSessionExpired,
   });
 
   final TokenStorage storage;
-  final String baseUrl;
+
+  /// リフレッシュ／リトライ用の dio（インターセプタ無し＝再帰ループ防止）。
+  final Dio refreshClient;
 
   /// セッション失効（リフレッシュ不能）を上位へ通知するコールバック。
   final void Function() onSessionExpired;
 
-  /// リフレッシュ/リトライ用の素の Dio（インターセプタ無し＝再帰ループ防止）。
-  Dio _bareDio() => Dio(BaseOptions(baseUrl: baseUrl));
+  /// 進行中の refresh。null でなければ既に走っている＝それを待つ（多重発火防止）。
+  Future<bool>? _inflightRefresh;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
@@ -52,7 +60,7 @@ class AuthInterceptor extends QueuedInterceptorsWrapper {
       return;
     }
 
-    final refreshed = await _tryRefresh();
+    final refreshed = await _refreshOnce();
     if (!refreshed) {
       // 再発行できない＝セッション失効。トークンを捨てて未認証へ。
       await storage.clear();
@@ -67,20 +75,25 @@ class AuthInterceptor extends QueuedInterceptorsWrapper {
       final opts = err.requestOptions
         ..extra['__retried__'] = true
         ..headers['Authorization'] = 'Bearer $newAccess';
-      final response = await _bareDio().fetch<dynamic>(opts);
+      final response = await refreshClient.fetch<dynamic>(opts);
       handler.resolve(response);
     } on DioException catch (retryErr) {
       handler.next(retryErr);
     }
   }
 
+  /// 進行中の refresh があればそれを待ち、無ければ 1 本開始する（in-flight 共有）。
+  Future<bool> _refreshOnce() {
+    return _inflightRefresh ??= _doRefresh().whenComplete(() => _inflightRefresh = null);
+  }
+
   /// リフレッシュトークンでトークン一式を再発行し、保管を更新する。
   /// @returns 成功したら true（失敗＝失効は false）
-  Future<bool> _tryRefresh() async {
+  Future<bool> _doRefresh() async {
     final refresh = await storage.readRefreshToken();
     if (refresh == null || refresh.isEmpty) return false;
     try {
-      final res = await _bareDio().post<dynamic>(
+      final res = await refreshClient.post<dynamic>(
         '/auth/refresh',
         data: {'refresh_token': refresh},
       );
@@ -98,16 +111,17 @@ class AuthInterceptor extends QueuedInterceptorsWrapper {
 /// ベース URL・JSON ヘッダ・認証インターセプタを備える。認証エンドポイント（register/login/
 /// refresh）は security 不要だが、Bearer が付いても無害なので一律付与する。
 final dioProvider = Provider<Dio>((ref) {
-  final dio = Dio(
-    BaseOptions(
-      baseUrl: AppConfig.apiBaseUrl,
-      headers: {'Content-Type': 'application/json'},
-    ),
+  final options = BaseOptions(
+    baseUrl: AppConfig.apiBaseUrl,
+    headers: {'Content-Type': 'application/json'},
   );
+  final dio = Dio(options);
+  // リフレッシュ／リトライ用の素の dio（インターセプタ無し）。
+  final refreshClient = Dio(options);
   dio.interceptors.add(
     AuthInterceptor(
       storage: ref.read(tokenStorageProvider),
-      baseUrl: AppConfig.apiBaseUrl,
+      refreshClient: refreshClient,
       // 失効時は認証状態を未認証へ倒す（ルーターがログインへ誘導）。
       onSessionExpired: () => ref.read(authControllerProvider.notifier).markSessionExpired(),
     ),

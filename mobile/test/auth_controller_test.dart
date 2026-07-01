@@ -1,60 +1,12 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/src/auth/auth_controller.dart';
 import 'package:mobile/src/auth/auth_repository.dart';
-import 'package:mobile/src/auth/auth_tokens.dart';
+import 'package:mobile/src/core/api_exception.dart';
 import 'package:mobile/src/core/token_storage.dart';
 
-/// インメモリのトークン保管（platform 依存の secure storage を使わない）。
-class FakeTokenStorage extends TokenStorage {
-  String? access;
-  String? refresh;
-
-  @override
-  Future<void> save(AuthTokens tokens) async {
-    access = tokens.accessToken;
-    refresh = tokens.refreshToken;
-  }
-
-  @override
-  Future<String?> readAccessToken() async => access;
-
-  @override
-  Future<String?> readRefreshToken() async => refresh;
-
-  @override
-  Future<void> clear() async {
-    access = null;
-    refresh = null;
-  }
-}
-
-/// 認証 API のフェイク（Dio を叩かない）。
-class FakeAuthRepository extends AuthRepository {
-  FakeAuthRepository() : super(Dio());
-
-  bool logoutCalled = false;
-
-  @override
-  Future<AuthTokens> login({required String email, required String password}) async {
-    return const AuthTokens(accessToken: 'a', refreshToken: 'r', expiresIn: 900);
-  }
-
-  @override
-  Future<AuthTokens> register({
-    required String email,
-    required String password,
-    String? name,
-  }) async {
-    return const AuthTokens(accessToken: 'a2', refreshToken: 'r2', expiresIn: 900);
-  }
-
-  @override
-  Future<void> logout(String refreshToken) async {
-    logoutCalled = true;
-  }
-}
+import 'helpers/fake_auth_repository.dart';
+import 'helpers/fake_token_storage.dart';
 
 /// state が unknown → 解決するまで待つ小ヘルパー。
 Future<AuthStatus> settled(ProviderContainer c) async {
@@ -99,6 +51,34 @@ void main() {
 
     expect(c.read(authControllerProvider), AuthStatus.authenticated);
     expect(storage.refresh, 'r');
+  });
+
+  test('login 失敗: 例外を投げ、state は authenticated にならない・トークンも保管しない', () async {
+    final storage = FakeTokenStorage();
+    final c = make(storage, FakeAuthRepository(failAuth: true));
+    addTearDown(c.dispose);
+    await settled(c);
+
+    await expectLater(
+      c.read(authControllerProvider.notifier).login(email: 'e@x.com', password: 'bad'),
+      throwsA(isA<ApiException>()),
+    );
+    expect(c.read(authControllerProvider), AuthStatus.unauthenticated);
+    expect(storage.refresh, isNull);
+  });
+
+  test('register 失敗: 例外を投げ、state は authenticated にならない', () async {
+    final storage = FakeTokenStorage();
+    final c = make(storage, FakeAuthRepository(failAuth: true));
+    addTearDown(c.dispose);
+    await settled(c);
+
+    await expectLater(
+      c.read(authControllerProvider.notifier).register(email: 'e@x.com', password: 'password1'),
+      throwsA(isA<ApiException>()),
+    );
+    expect(c.read(authControllerProvider), AuthStatus.unauthenticated);
+    expect(storage.refresh, isNull);
   });
 
   test('logout: サーバ失効を呼びトークン破棄・unauthenticated へ', () async {

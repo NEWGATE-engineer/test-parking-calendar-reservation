@@ -87,6 +87,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       labelText: 'パスワード（8文字以上）',
                     ),
                     obscureText: true,
+                    autofillHints: const [AutofillHints.newPassword],
                     validator: (v) =>
                         (v == null || v.length < 8) ? 'パスワードは8文字以上で入力してください' : null,
                   ),

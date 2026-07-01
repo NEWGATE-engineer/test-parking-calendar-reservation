@@ -7,11 +7,23 @@ import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
 import '../spots/home_screen.dart';
 
-/// 認証状態に応じてルーティングする go_router。
+/// 認証状態と現在ロケーションから、リダイレクト先（不要なら null）を決める純粋関数。
 ///
-/// - `unknown`（起動時トークン確認中）: スプラッシュを出し、リダイレクトしない。
+/// - `unknown`（起動時トークン確認中）: リダイレクトしない（スプラッシュ表示）。
 /// - `unauthenticated`: ログイン／登録以外はログインへ。
 /// - `authenticated`: ログイン／登録にいたらホームへ。
+///
+/// GoRouter から切り出して単体テスト可能にする（リダイレクトループ・未認証での保護画面到達を検知）。
+String? authRedirect({required AuthStatus status, required String location}) {
+  final onAuthPages = location == '/login' || location == '/register';
+  if (status == AuthStatus.unknown) return null;
+  if (status == AuthStatus.unauthenticated) {
+    return onAuthPages ? null : '/login';
+  }
+  return onAuthPages ? '/' : null;
+}
+
+/// 認証状態に応じてルーティングする go_router。
 ///
 /// 認証状態の変化は `refreshListenable` 経由で redirect を再評価させる（ref.listen で通知）。
 final routerProvider = Provider<GoRouter>((ref) {
@@ -23,22 +35,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
-    redirect: (context, state) {
-      final status = ref.read(authControllerProvider);
-      final loc = state.matchedLocation;
-      final onAuthPages = loc == '/login' || loc == '/register';
-
-      // 起動時の確認中はどこへも飛ばさない（スプラッシュを表示）。
-      if (status == AuthStatus.unknown) return null;
-
-      if (status == AuthStatus.unauthenticated) {
-        // 未認証は認証画面のみ許可。それ以外はログインへ。
-        return onAuthPages ? null : '/login';
-      }
-
-      // 認証済みで認証画面にいるならホームへ。
-      return onAuthPages ? '/' : null;
-    },
+    redirect: (context, state) => authRedirect(
+      status: ref.read(authControllerProvider),
+      location: state.matchedLocation,
+    ),
     routes: [
       GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),

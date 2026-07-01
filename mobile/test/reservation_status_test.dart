@@ -39,5 +39,10 @@ void main() {
       final now = DateTime.utc(2026, 7, 2, 10, 30);
       expect(canGateDown(status: 'active', now: now, start: start, end: end), false);
     });
+
+    test('境界: now == start / now == end は閉区間で true', () {
+      expect(canGateDown(status: 'reserved', now: start, start: start, end: end), true);
+      expect(canGateDown(status: 'reserved', now: end, start: start, end: end), true);
+    });
   });
 }

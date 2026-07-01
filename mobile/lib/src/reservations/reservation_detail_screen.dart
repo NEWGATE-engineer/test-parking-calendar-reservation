@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/api_exception.dart';
+import '../core/date_format.dart';
 import 'reservation.dart';
 import 'reservation_status.dart';
 import 'reservations_repository.dart';
@@ -12,6 +13,10 @@ import 'reservations_repository.dart';
 /// 入庫待ちポーリングの間隔と打ち切り（仮値・画面設計「数秒に1回・最大数分」）。
 const _pollInterval = Duration(seconds: 3);
 const _pollTimeout = Duration(minutes: 2);
+
+/// 打ち切りまでの最大 tick 数（= 2分 ÷ 3秒 = 40）。壁時計（DateTime.now）ではなく tick を数えることで、
+/// テストで仮想時間（tester.pump(interval)）を進めて打ち切りパスを検証できるようにする。
+final _maxPollTicks = _pollTimeout.inMilliseconds ~/ _pollInterval.inMilliseconds;
 
 /// 予約詳細（一覧から id で引く）。状態に応じてキャンセル・DOWN（入庫）を出し分ける。
 ///
@@ -28,7 +33,7 @@ class ReservationDetailScreen extends ConsumerStatefulWidget {
 
 class _ReservationDetailScreenState extends ConsumerState<ReservationDetailScreen> {
   Timer? _pollTimer;
-  DateTime? _deadline;
+  int _pollTicks = 0;
   bool _waitingEntry = false;
   bool _busy = false;
 
@@ -124,12 +129,15 @@ class _ReservationDetailScreenState extends ConsumerState<ReservationDetailScree
   }
 
   void _startPolling() {
+    // 二重開始の防御（UI 上はボタン無効化済みだが念のため先にキャンセル）。
+    _pollTimer?.cancel();
     setState(() {
       _waitingEntry = true;
-      _deadline = DateTime.now().add(_pollTimeout);
+      _pollTicks = 0;
     });
     _pollTimer = Timer.periodic(_pollInterval, (_) {
-      if (_deadline == null || DateTime.now().isAfter(_deadline!)) {
+      _pollTicks++;
+      if (_pollTicks > _maxPollTicks) {
         _stopPolling();
         _snack('入庫が確認できませんでした。予約はそのままです。');
         return;
@@ -215,7 +223,7 @@ class _DetailBody extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('時間'),
-          subtitle: Text('${_fmt(r.startTime)} 〜 ${_fmt(r.endTime)}'),
+          subtitle: Text('${formatLocalDateTime(r.startTime)} 〜 ${formatLocalDateTime(r.endTime)}'),
         ),
         const Divider(height: 32),
         if (waitingEntry) ...[
@@ -249,8 +257,3 @@ class _DetailBody extends StatelessWidget {
   }
 }
 
-String _fmt(DateTime dt) {
-  final l = dt.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${l.month}/${l.day} ${two(l.hour)}:${two(l.minute)}';
-}

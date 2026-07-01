@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/api_exception.dart';
+import '../core/date_format.dart';
 import 'reservation.dart';
 import 'reservation_status.dart';
 import 'reservations_repository.dart';
@@ -51,17 +52,12 @@ class _ReservationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Text('${_fmt(reservation.startTime)} 〜 ${_fmt(reservation.endTime)}'),
+      title: Text(
+        '${formatLocalDateTime(reservation.startTime)} 〜 ${formatLocalDateTime(reservation.endTime)}',
+      ),
       subtitle: Text('区画: ${reservation.spotId}'),
       trailing: Chip(label: Text(reservationStatusLabel(reservation.status))),
       onTap: () => context.push('/reservation/${reservation.id}'),
     );
   }
-}
-
-/// ローカル時刻を 'M/d HH:mm' で表示（intl 非依存）。
-String _fmt(DateTime dt) {
-  final l = dt.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${l.month}/${l.day} ${two(l.hour)}:${two(l.minute)}';
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/api_exception.dart';
+import '../core/date_format.dart';
 import '../spots/spot_availability.dart';
 import '../spots/spots_repository.dart';
 import 'reservations_repository.dart';
@@ -63,8 +64,8 @@ class _ReserveScreenState extends ConsumerState<ReserveScreen> {
       body: Column(
         children: [
           _RangeSelector(
-            startLabel: _fmtDateTime(_start),
-            endLabel: _fmtDateTime(_end),
+            startLabel: formatLocalDateTime(_start),
+            endLabel: formatLocalDateTime(_end),
             durationMin: _durationMin,
             durations: _durations,
             onPickStart: _pickStart,
@@ -94,7 +95,7 @@ class _ReserveScreenState extends ConsumerState<ReserveScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('予約の確認'),
-        content: Text('${spot.name}\n${_fmtDateTime(_start)} 〜 ${_fmtDateTime(_end)}'),
+        content: Text('${spot.name}\n${formatLocalDateTime(_start)} 〜 ${formatLocalDateTime(_end)}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -253,11 +254,4 @@ class _AvailabilityList extends StatelessWidget {
       AvailabilityReason.unknown => '不可',
     };
   }
-}
-
-/// ローカル時刻を 'M/d HH:mm' で表示する（intl 非依存の簡易フォーマット）。
-String _fmtDateTime(DateTime dt) {
-  final l = dt.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${l.month}/${l.day} ${two(l.hour)}:${two(l.minute)}';
 }

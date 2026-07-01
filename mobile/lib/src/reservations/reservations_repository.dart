@@ -38,7 +38,7 @@ class ReservationsRepository {
 
   /// 予約をキャンセルする（reserved のみ・204）。
   ///
-  /// @throws ApiException 404 / 409 not_cancelable / 401
+  /// @throws ApiException 404 / 409 not_cancelable / 401 / network
   Future<void> cancel(String id) async {
     try {
       await _dio.delete<dynamic>('/reservations/$id');
@@ -50,7 +50,7 @@ class ReservationsRepository {
   /// DOWN 指示（入庫）。request_id で冪等性を担保する（呼び出し側が送信操作ごとに採番）。
   ///
   /// @throws ApiException 404 / 409 invalid_state|physical_occupancy|command_* /
-  ///   503 device_unhealthy / 504 timeout(retryable) / 401
+  ///   503 device_unhealthy / 504 timeout(retryable) / 401 / network
   Future<GateDownResult> gateDown({required String id, required String requestId}) async {
     try {
       final res = await _dio.post<dynamic>(

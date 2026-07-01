@@ -108,4 +108,69 @@ void main() {
     expect(find.textContaining('デバイスが応答していません'), findsOneWidget);
     expect(find.textContaining('入庫を確認しています'), findsNothing);
   });
+
+  testWidgets('入庫が invalid_state: 予約時間内かの案内 SnackBar', (tester) async {
+    await pump(
+      tester,
+      FakeReservationsRepository(
+        [reservedInPeriod()],
+        gateDownError: ApiException(statusCode: 409, code: 'invalid_state', message: 'x'),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '入庫する（DOWN）'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('DOWN 指示できません'), findsOneWidget);
+  });
+
+  testWidgets('入庫が command_in_progress: 処理中の SnackBar', (tester) async {
+    await pump(
+      tester,
+      FakeReservationsRepository(
+        [reservedInPeriod()],
+        gateDownError: ApiException(statusCode: 409, code: 'command_in_progress', message: 'x'),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '入庫する（DOWN）'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('処理中です'), findsOneWidget);
+  });
+
+  testWidgets('入庫待ちが上限で打ち切られ、確認できなかった旨を表示', (tester) async {
+    await pump(tester, FakeReservationsRepository([reservedInPeriod()]));
+
+    await tester.tap(find.widgetWithText(FilledButton, '入庫する（DOWN）'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('入庫を確認しています'), findsOneWidget);
+
+    // 仮想時間を tick ごとに進める（2分/3秒=40 tick 超で打ち切り）。active には決してならない。
+    for (var i = 0; i < 41; i++) {
+      await tester.pump(const Duration(seconds: 3));
+    }
+    await tester.pump();
+
+    expect(find.textContaining('入庫が確認できませんでした'), findsOneWidget);
+  });
+
+  testWidgets('キャンセルの確認で「やめる」→ API を呼ばない', (tester) async {
+    final repo = await pump(tester, FakeReservationsRepository([reservedInPeriod()]));
+
+    await tester.tap(find.widgetWithText(OutlinedButton, '予約をキャンセル'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'やめる'));
+    await tester.pumpAndSettle();
+
+    expect(repo.cancelCalled, false);
+  });
+
+  testWidgets('一覧に対象IDが無い（ディープリンク等）→ 見つからない表示', (tester) async {
+    await pump(tester, FakeReservationsRepository([])); // r1 を含まない
+    expect(find.textContaining('予約が見つかりませんでした'), findsOneWidget);
+  });
 }

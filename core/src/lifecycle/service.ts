@@ -1,6 +1,6 @@
 import { config } from '../config.js';
 import { type TxRunner, withSerializableTx } from '../db.js';
-import { computeCompletionFee } from '../reservations/fee.js';
+import { settleCompletion } from '../reservations/completion.js';
 import type { LifecycleRepository } from './repository.js';
 
 /**
@@ -65,28 +65,20 @@ export class LifecycleService {
 
     for (const c of candidates) {
       try {
-        // 条件付き UPDATE で completed にできた勝者だけが Fee を INSERT（UQ_Fee_resv 二重防止）。
-        // read→write を SERIALIZABLE で束ね、テレメトリ即時確定との競合でも勝者は 1 つに収束する。
-        // completeReservation と insertFee は同一 tx なので、insertFee が throw すれば UPDATE も
-        // ロールバックされる＝「完了したが Fee 未挿入」は構造上発生しない（完了＝必ず課金）。
-        const charged = await this.runTx(async (tx) => {
-          const rows = await this.repo.completeReservation(tx, c.id);
-          if (rows !== 1) return false;
-          const fee = computeCompletionFee(
-            c.start_time,
-            c.end_time,
-            c.last_exit_time,
-            config.reservation,
-          );
-          await this.repo.insertFee(tx, {
+        // 完了確定＋料金確定は共有オーケストレーションへ（条件付き UPDATE が1件成功時のみ Fee）。
+        // 同一 tx なので insertFee が throw すれば UPDATE もロールバック＝「完了したが Fee 未挿入」は
+        // 構造上発生しない。テレメトリ即時確定と競合しても勝者は1つに収束する（UQ_Fee_resv）。
+        const settled = await this.runTx((tx) =>
+          settleCompletion(tx, this.repo, {
             reservationId: c.id,
-            slotFee: fee.slotFee,
-            overstayFee: fee.overstayFee,
+            start: c.start_time,
+            end: c.end_time,
+            lastExit: c.last_exit_time,
             calculatedAt: now,
-          });
-          return true;
-        });
-        if (charged) completed++;
+            cfg: config.reservation,
+          }),
+        );
+        if (settled.completed) completed++;
       } catch (err) {
         // 1 件の確定失敗は走査全体を止めない（安全網なので次回走査で再試行できる）。
         // err は unknown。Error 以外（文字列 throw 等）でも message を string に保つ。

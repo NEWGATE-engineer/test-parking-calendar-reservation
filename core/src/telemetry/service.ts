@@ -1,6 +1,6 @@
 import { config } from '../config.js';
 import { type TxRunner, withSerializableTx } from '../db.js';
-import { computeCompletionFee } from '../reservations/fee.js';
+import { settleCompletion } from '../reservations/completion.js';
 import type { TelemetryRepository } from './repository.js';
 import type {
   EntryResult,
@@ -202,24 +202,18 @@ export class TelemetryService {
       const ended = ev.occurredAt.getTime() >= open.reservation_end.getTime();
       const remainingOpen = await this.repo.countOpenUsageForReservation(tx, open.reservation_id);
       if (ended && remainingOpen === 0) {
-        // active/overstay のときだけ completed（条件付き UPDATE）。勝者（1 件）だけが Fee を INSERT。
-        const completedRows = await this.repo.completeReservation(tx, open.reservation_id);
-        completed = completedRows === 1;
-        if (completed) {
-          const fee = computeCompletionFee(
-            open.reservation_start,
-            open.reservation_end,
-            ev.occurredAt, // この出庫が最終出庫（残 open 0 件を確認済み）
-            config.reservation,
-          );
-          await this.repo.insertFee(tx, {
-            reservationId: open.reservation_id,
-            slotFee: fee.slotFee,
-            overstayFee: fee.overstayFee,
-            calculatedAt: new Date(),
-          });
-          feeInserted = true;
-        }
+        // 完了確定＋料金確定は共有オーケストレーションへ（条件付き UPDATE が1件成功時のみ Fee）。
+        // この出庫が最終出庫（残 open 0 件を確認済み）なので lastExit = ev.occurredAt。
+        const settled = await settleCompletion(tx, this.repo, {
+          reservationId: open.reservation_id,
+          start: open.reservation_start,
+          end: open.reservation_end,
+          lastExit: ev.occurredAt,
+          calculatedAt: new Date(),
+          cfg: config.reservation,
+        });
+        completed = settled.completed;
+        feeInserted = settled.completed;
       }
 
       return {

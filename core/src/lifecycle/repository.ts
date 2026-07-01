@@ -1,5 +1,6 @@
 import mssql from 'mssql';
 import { getPool, type Tx } from '../db.js';
+import { type FeeInput, SqlCompletionRepository } from '../reservations/completion.js';
 
 /**
  * 予約ライフサイクルの定期走査（タイマー）のデータアクセス層。SQL はすべてパラメータ化。
@@ -18,14 +19,6 @@ import { getPool, type Tx } from '../db.js';
  *
  * @module lifecycle/repository
  */
-
-/** Fee INSERT の入力（完了確定時）。telemetry の FeeInput と同形。 */
-export interface FeeInput {
-  reservationId: string;
-  slotFee: number;
-  overstayFee: number;
-  calculatedAt: Date;
-}
 
 /** autoComplete の完了候補（確定料金の計算に必要な期間と最終出庫つき）。 */
 export interface CompletableReservation {
@@ -84,6 +77,9 @@ export interface LifecycleRepository {
 
 /** mssql による {@link LifecycleRepository} 実装。 */
 export class SqlLifecycleRepository implements LifecycleRepository {
+  /** 完了確定 SQL は共有実装に委譲する（SQL の重複を作らない・ADR 0009）。 */
+  private readonly completion = new SqlCompletionRepository();
+
   /** @inheritDoc */
   async markNoShows(now: Date, graceMinutes: number): Promise<number> {
     // set-based: reserved かつ 開始+猶予 経過 かつ UsageRecord 無 を一括 no_show。
@@ -141,29 +137,13 @@ export class SqlLifecycleRepository implements LifecycleRepository {
     return result.recordset;
   }
 
-  /** @inheritDoc */
-  async completeReservation(tx: Tx, reservationId: string): Promise<number> {
-    // active/overstay のときだけ completed へ。0 件＝既に確定 or 対象外（二重確定防止）。
-    const result = await new mssql.Request(tx)
-      .input('resv', mssql.UniqueIdentifier, reservationId)
-      .query(
-        `UPDATE Reservation SET status = 'completed'
-         WHERE id = @resv AND status IN ('active','overstay')`,
-      );
-    return result.rowsAffected[0] ?? 0;
+  /** @inheritDoc（共有の完了確定 SQL に委譲） */
+  completeReservation(tx: Tx, reservationId: string): Promise<number> {
+    return this.completion.completeReservation(tx, reservationId);
   }
 
-  /** @inheritDoc */
-  async insertFee(tx: Tx, input: FeeInput): Promise<void> {
-    // total は計算列。UQ_Fee_resv があるため completeReservation が 1 を返した勝者だけが到達する。
-    await new mssql.Request(tx)
-      .input('resv', mssql.UniqueIdentifier, input.reservationId)
-      .input('slot', mssql.Decimal(10, 2), input.slotFee)
-      .input('over', mssql.Decimal(10, 2), input.overstayFee)
-      .input('calc', mssql.DateTime2(3), input.calculatedAt)
-      .query(
-        `INSERT INTO Fee (reservation_id, slot_fee, overstay_fee, status, calculated_at)
-         VALUES (@resv, @slot, @over, 'confirmed', @calc)`,
-      );
+  /** @inheritDoc（共有の Fee INSERT に委譲） */
+  insertFee(tx: Tx, input: FeeInput): Promise<void> {
+    return this.completion.insertFee(tx, input);
   }
 }

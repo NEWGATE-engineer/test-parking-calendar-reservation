@@ -322,7 +322,9 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: active / overstay 以外は申告不可
+          description: >
+            active / overstay 以外は申告不可（既に完了・キャンセル等）。
+            Error.code=not_finishable（retryable=false）。
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

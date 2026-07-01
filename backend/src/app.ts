@@ -2,6 +2,8 @@ import { config, notConfiguredDeviceCommandPort } from '@parking/core';
 import express, { type Express } from 'express';
 import { createAuthRouter } from './auth/router.js';
 import { errorHandler } from './http/errorHandler.js';
+import { createFeeRouter } from './reservations/fee.router.js';
+import { createFinishRouter } from './reservations/finish.router.js';
 import { createGateDownRouter } from './reservations/gateDown.router.js';
 import { createIotDeviceCommandPort } from './reservations/iotDeviceCommandPort.js';
 import { createReservationsRouter } from './reservations/router.js';
@@ -49,6 +51,10 @@ export function buildApp(): Express {
     ? createIotDeviceCommandPort()
     : notConfiguredDeviceCommandPort;
   app.use('/reservations', createGateDownRouter(undefined, devicePort));
+
+  // 利用終了申告・料金取得（同じ /reservations マウントに併設）。
+  app.use('/reservations', createFinishRouter());
+  app.use('/reservations', createFeeRouter());
 
   // エラーハンドラは必ず最後（前段ハンドラの例外を集約して整形する）
   app.use(errorHandler);

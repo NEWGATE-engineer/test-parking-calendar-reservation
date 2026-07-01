@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../auth/auth_controller.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
+import '../reservations/reservation_detail_screen.dart';
+import '../reservations/reservations_list_screen.dart';
 import '../reservations/reserve_screen.dart';
 import '../spots/home_screen.dart';
 
@@ -45,6 +47,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
       GoRoute(path: '/reserve', builder: (_, _) => const ReserveScreen()),
+      GoRoute(path: '/reservations', builder: (_, _) => const ReservationsListScreen()),
+      GoRoute(
+        path: '/reservation/:id',
+        builder: (_, state) => ReservationDetailScreen(id: state.pathParameters['id']!),
+      ),
     ],
   );
 });

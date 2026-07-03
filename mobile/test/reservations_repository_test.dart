@@ -111,4 +111,65 @@ void main() {
           .having((e) => e.retryable, 'retryable', true)),
     );
   });
+
+  test('finish 200: Reservation に変換（completed）', () async {
+    late RequestOptions captured;
+    final repo = repoWith((options) {
+      captured = options;
+      return jsonResponse({
+        'id': 'r1',
+        'spot_id': 's1',
+        'start_time': '2026-07-02T01:00:00.000Z',
+        'end_time': '2026-07-02T01:30:00.000Z',
+        'status': 'completed',
+        'created_at': '2026-07-01T00:00:00.000Z',
+        'estimated_slot_fee': 100,
+        'in_car': false,
+      }, 200);
+    });
+
+    final res = await repo.finish('r1');
+    expect(res.status, 'completed');
+    expect(res.inCar, false);
+    expect(captured.path, '/reservations/r1/finish');
+  });
+
+  test('finish 409 not_finishable: ApiException', () async {
+    await expectLater(
+      repoWith((_) => jsonResponse({'code': 'not_finishable', 'message': 'x'}, 409)).finish('r1'),
+      throwsA(isA<ApiException>().having((e) => e.code, 'code', 'not_finishable')),
+    );
+  });
+
+  test('fetchFee 200: confirmed を Fee に変換', () async {
+    final repo = repoWith(
+      (_) => jsonResponse({
+        'reservation_id': 'r1',
+        'slot_fee': 200,
+        'overstay_fee': 100,
+        'total': 300,
+        'status': 'confirmed',
+        'calculated_at': '2026-07-02T02:00:00.000Z',
+      }, 200),
+    );
+    final fee = await repo.fetchFee('r1');
+    expect(fee.isConfirmed, true);
+    expect(fee.total, 300);
+  });
+
+  test('fetchFee 200: pending（未確定）', () async {
+    final repo = repoWith(
+      (_) => jsonResponse({
+        'reservation_id': 'r1',
+        'slot_fee': 0,
+        'overstay_fee': 0,
+        'total': 0,
+        'status': 'pending',
+        'calculated_at': null,
+      }, 200),
+    );
+    final fee = await repo.fetchFee('r1');
+    expect(fee.isConfirmed, false);
+    expect(fee.calculatedAt, isNull);
+  });
 }

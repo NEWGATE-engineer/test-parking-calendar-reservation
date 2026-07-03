@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
+import 'fee.dart';
 import 'reservation.dart';
 
 /// gate-down（DOWN 指示）成功結果（OpenAPI GateDownResponse）。
@@ -63,6 +64,30 @@ class ReservationsRepository {
     }
   }
 
+  /// 利用終了を申告する（200）。空車なら即完了＋料金確定、在車中は end_time 前倒しのみ。
+  ///
+  /// @throws ApiException 404 / 409 not_finishable / 401 / network
+  Future<Reservation> finish(String id) async {
+    try {
+      final res = await _dio.post<dynamic>('/reservations/$id/finish');
+      return Reservation.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// 料金を取得する（200）。未確定なら status=pending が返る。
+  ///
+  /// @throws ApiException 404 / 401 / network
+  Future<Fee> fetchFee(String id) async {
+    try {
+      final res = await _dio.get<dynamic>('/reservations/$id/fee');
+      return Fee.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// 予約を作成する（201）。時刻は UTC ISO8601 で送る（CLAUDE.md: 時刻は UTC 保存）。
   ///
   /// @throws ApiException 404 区画なし / 409 conflict_overlap|conflict_buffer|device_unhealthy /
@@ -95,4 +120,12 @@ final reservationsRepositoryProvider = Provider<ReservationsRepository>(
 /// 単体取得 API（GET /reservations/{id}）が無いため、詳細画面もこの一覧から id で対象を引く。
 final reservationsProvider = FutureProvider<List<Reservation>>(
   (ref) => ref.read(reservationsRepositoryProvider).fetchReservations(),
+);
+
+/// 予約の確定料金。完了した予約の詳細画面で watch する（family キーは予約 ID）。
+///
+/// 完了前は fee GET が pending を返すため、詳細画面では completed のときだけ購読する
+/// （完了前の見込みは予約の estimated_slot_fee を使う）。
+final feeProvider = FutureProvider.family<Fee, String>(
+  (ref, id) => ref.read(reservationsRepositoryProvider).fetchFee(id),
 );

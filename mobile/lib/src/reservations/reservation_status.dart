@@ -32,6 +32,18 @@ String reservationStatusLabel(String status) {
 /// キャンセル可能か（reserved のみ・OpenAPI/処理一覧と一致）。
 bool canCancel(String status) => status == 'reserved';
 
+/// 利用終了を申告できるか。active/overstay かつ **在車していない**（出庫済み）。
+///
+/// backend は在車中の finish も受け付けるが、モバイルは「出庫してから押す」運用にするため、
+/// 在車中（in_car=true）はボタンを出さない（画面設計の活性表を in_car で精緻化）。
+bool canFinish({required String status, required bool inCar}) {
+  if (status != 'active' && status != 'overstay') return false;
+  return !inCar;
+}
+
+/// 料金セクションを表示するか（完了時のみ確定額を出す）。完了前は予約の見込み額を別途表示する。
+bool showsConfirmedFee(String status) => status == 'completed';
+
 /// DOWN（入庫）指示が可能か。reserved かつ現在時刻が予約期間 [start, end] 内。
 ///
 /// 「予約期間に入ってから活性」（画面設計 △）を前向きに制御し、409 invalid_state を極力出さない。

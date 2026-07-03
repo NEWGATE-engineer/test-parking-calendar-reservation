@@ -11,10 +11,18 @@
 
 // ロック板 DOWN 指示の冪等記録（CommandLog）
 export * from './commandLog.repository.js';
+// 完了確定＋確定料金の共有（telemetry/lifecycle/finish が使う）
+export * from './completion.js';
 // デバイス指示ポート interface（IoT 実装を抽象化）
 export * from './deviceCommandPort.js';
 // 料金算出（純粋関数）
 export * from './fee.js';
+// 料金取得（GET /reservations/{id}/fee）
+export * from './fee.repository.js';
+export * from './fee.service.js';
+// 利用終了申告（POST /reservations/{id}/finish）
+export * from './finish.repository.js';
+export * from './finish.service.js';
 // gate-down ユースケース
 export * from './gateDown.service.js';
 // gate-down 入力バリデーション

@@ -1,5 +1,6 @@
 import mssql from 'mssql';
 import type { Tx } from '../db.js';
+import { type FeeInput, SqlCompletionRepository } from '../reservations/completion.js';
 import type { ReservationStatus } from '../reservations/repository.js';
 import type { TelemetryType } from './types.js';
 
@@ -46,14 +47,6 @@ export interface DeviceEventInput {
   reservationId: string | null;
   type: TelemetryType;
   occurredAt: Date;
-}
-
-/** Fee INSERT の入力（完了確定時）。 */
-export interface FeeInput {
-  reservationId: string;
-  slotFee: number;
-  overstayFee: number;
-  calculatedAt: Date;
 }
 
 /** テレメトリ処理のデータアクセス抽象（テストではモックに差し替え）。 */
@@ -117,6 +110,9 @@ export interface TelemetryRepository {
 
 /** mssql による {@link TelemetryRepository} 実装。 */
 export class SqlTelemetryRepository implements TelemetryRepository {
+  /** 完了確定 SQL は共有実装に委譲する（SQL の重複を作らない・ADR 0009）。 */
+  private readonly completion = new SqlCompletionRepository();
+
   /** @inheritDoc */
   async findDeviceById(tx: Tx, deviceId: string): Promise<DeviceRow | null> {
     const result = await new mssql.Request(tx)
@@ -265,31 +261,14 @@ export class SqlTelemetryRepository implements TelemetryRepository {
     return result.recordset[0]?.cnt ?? 0;
   }
 
-  /** @inheritDoc */
-  async completeReservation(tx: Tx, reservationId: string): Promise<number> {
-    // active/overstay のときだけ completed へ。0 件＝既に確定 or 対象外（二重確定防止）。
-    const result = await new mssql.Request(tx)
-      .input('resv', mssql.UniqueIdentifier, reservationId)
-      .query(
-        `UPDATE Reservation SET status = 'completed'
-         WHERE id = @resv AND status IN ('active','overstay')`,
-      );
-    return result.rowsAffected[0] ?? 0;
+  /** @inheritDoc（共有の完了確定 SQL に委譲） */
+  completeReservation(tx: Tx, reservationId: string): Promise<number> {
+    return this.completion.completeReservation(tx, reservationId);
   }
 
-  /** @inheritDoc */
-  async insertFee(tx: Tx, input: FeeInput): Promise<void> {
-    // total は計算列（slot_fee + overstay_fee）。status は確定済みで 'confirmed'。
-    // UQ_Fee_resv があるため、completeReservation が 1 を返した勝者だけがここに到達する設計。
-    await new mssql.Request(tx)
-      .input('resv', mssql.UniqueIdentifier, input.reservationId)
-      .input('slot', mssql.Decimal(10, 2), input.slotFee)
-      .input('over', mssql.Decimal(10, 2), input.overstayFee)
-      .input('calc', mssql.DateTime2(3), input.calculatedAt)
-      .query(
-        `INSERT INTO Fee (reservation_id, slot_fee, overstay_fee, status, calculated_at)
-         VALUES (@resv, @slot, @over, 'confirmed', @calc)`,
-      );
+  /** @inheritDoc（共有の Fee INSERT に委譲） */
+  insertFee(tx: Tx, input: FeeInput): Promise<void> {
+    return this.completion.insertFee(tx, input);
   }
 
   /** @inheritDoc */

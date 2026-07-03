@@ -322,10 +322,13 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: active / overstay 以外は申告不可
+          description: >
+            active / overstay 以外は申告不可（既に完了・キャンセル等）。
+            Error.code=not_finishable（retryable=false）。
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   /reservations/{id}/fee:
     parameters:
@@ -342,6 +345,7 @@ paths:
               schema: { $ref: '#/components/schemas/Fee' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
 components:
   securitySchemes:
@@ -384,7 +388,7 @@ components:
           description: >
             機械可読の理由コード。例：physical_occupancy / device_unhealthy /
             conflict_overlap / conflict_buffer / not_modifiable / not_cancelable /
-            invalid_state / command_in_progress / command_failed /
+            not_finishable / invalid_state / command_in_progress / command_failed /
             timeout / validation_error / not_found / unauthorized / email_conflict /
             invalid_credentials / account_locked / account_disabled / invalid_token /
             token_reused / internal_error

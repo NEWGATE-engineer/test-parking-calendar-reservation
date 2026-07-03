@@ -1,5 +1,6 @@
 import mssql from 'mssql';
 import { getPool, type Tx } from '../db.js';
+import { type FeeInput, SqlCompletionRepository } from '../reservations/completion.js';
 
 /**
  * 予約ライフサイクルの定期走査（タイマー）のデータアクセス層。SQL はすべてパラメータ化。
@@ -10,22 +11,14 @@ import { getPool, type Tx } from '../db.js';
  * - **autoComplete** は予約ごとに確定料金（枠＋超過）を Fee へ INSERT する必要があるため、
  *   候補を {@link findCompletable} で抽出し、サービスが1件ずつトランザクションで確定する。
  *
- * `completeReservation` / `insertFee` はテレメトリの出庫確定（onExitDetected）と**同一の共有
- * ドメイン操作**（同じ SQL）。タイマーはイベント欠落時の安全網としてこれを再実行する。両者は
- * 条件付き UPDATE（`WHERE status IN ('active','overstay')`）＋ `UQ_Fee_resv` で、同時に走っても
- * 勝者1件だけが Fee を INSERT する（二重課金しない）。将来 `reservations/` 配下の completion repo へ
- * 抽出する候補だが、MVP は重複を許容する。
+ * `completeReservation` / `insertFee` は共有の {@link SqlCompletionRepository} へ**委譲**する
+ * （ADR 0009 で `reservations/completion.ts` に抽出済み）。出庫確定（onExitDetected）・
+ * 利用終了申告（finish）と同一の完了確定 SQL を1箇所に集約し、条件付き UPDATE
+ * （`WHERE status IN ('active','overstay')`）＋ `UQ_Fee_resv` で、複数経路が同時に走っても
+ * 勝者1件だけが Fee を INSERT する（二重課金しない）。タイマーはイベント欠落時の安全網。
  *
  * @module lifecycle/repository
  */
-
-/** Fee INSERT の入力（完了確定時）。telemetry の FeeInput と同形。 */
-export interface FeeInput {
-  reservationId: string;
-  slotFee: number;
-  overstayFee: number;
-  calculatedAt: Date;
-}
 
 /** autoComplete の完了候補（確定料金の計算に必要な期間と最終出庫つき）。 */
 export interface CompletableReservation {
@@ -84,6 +77,9 @@ export interface LifecycleRepository {
 
 /** mssql による {@link LifecycleRepository} 実装。 */
 export class SqlLifecycleRepository implements LifecycleRepository {
+  /** 完了確定 SQL は共有実装に委譲する（SQL の重複を作らない・ADR 0009）。 */
+  private readonly completion = new SqlCompletionRepository();
+
   /** @inheritDoc */
   async markNoShows(now: Date, graceMinutes: number): Promise<number> {
     // set-based: reserved かつ 開始+猶予 経過 かつ UsageRecord 無 を一括 no_show。
@@ -141,29 +137,13 @@ export class SqlLifecycleRepository implements LifecycleRepository {
     return result.recordset;
   }
 
-  /** @inheritDoc */
-  async completeReservation(tx: Tx, reservationId: string): Promise<number> {
-    // active/overstay のときだけ completed へ。0 件＝既に確定 or 対象外（二重確定防止）。
-    const result = await new mssql.Request(tx)
-      .input('resv', mssql.UniqueIdentifier, reservationId)
-      .query(
-        `UPDATE Reservation SET status = 'completed'
-         WHERE id = @resv AND status IN ('active','overstay')`,
-      );
-    return result.rowsAffected[0] ?? 0;
+  /** @inheritDoc（共有の完了確定 SQL に委譲） */
+  completeReservation(tx: Tx, reservationId: string): Promise<number> {
+    return this.completion.completeReservation(tx, reservationId);
   }
 
-  /** @inheritDoc */
-  async insertFee(tx: Tx, input: FeeInput): Promise<void> {
-    // total は計算列。UQ_Fee_resv があるため completeReservation が 1 を返した勝者だけが到達する。
-    await new mssql.Request(tx)
-      .input('resv', mssql.UniqueIdentifier, input.reservationId)
-      .input('slot', mssql.Decimal(10, 2), input.slotFee)
-      .input('over', mssql.Decimal(10, 2), input.overstayFee)
-      .input('calc', mssql.DateTime2(3), input.calculatedAt)
-      .query(
-        `INSERT INTO Fee (reservation_id, slot_fee, overstay_fee, status, calculated_at)
-         VALUES (@resv, @slot, @over, 'confirmed', @calc)`,
-      );
+  /** @inheritDoc（共有の Fee INSERT に委譲） */
+  insertFee(tx: Tx, input: FeeInput): Promise<void> {
+    return this.completion.insertFee(tx, input);
   }
 }

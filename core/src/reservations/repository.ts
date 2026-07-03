@@ -36,6 +36,8 @@ export interface ReservationRow {
   end_time: Date;
   status: ReservationStatus;
   created_at: Date;
+  /** 在車中か（open な UsageRecord ＝ exit_time 未記録の入庫があるか）。在車判定の真実源。 */
+  in_car: boolean;
 }
 
 /** 予約作成の競合判定に必要な区画情報（デバイス健全性の素材）。 */
@@ -61,6 +63,8 @@ export interface CreatedReservation {
   end_time: Date;
   status: ReservationStatus;
   created_at: Date;
+  /** 作成直後は必ず在車していない（open UsageRecord 無し）ので false。 */
+  in_car: boolean;
 }
 
 /** 予約変更の条件付き UPDATE 入力（マージ後の最終値）。 */
@@ -198,7 +202,9 @@ export class SqlReservationsRepository implements ReservationsRepository {
       .input('spot_id', mssql.UniqueIdentifier, input.spotId)
       .input('start', mssql.DateTime2(3), input.start)
       .input('end', mssql.DateTime2(3), input.end)
-      .query<CreatedReservation>(
+      // OUTPUT には in_car 列は無い（在車は UsageRecord 由来で INSERT 直後は必ず false）。
+      // 型も OUTPUT 実列に合わせ、in_car はコード側で付与する（列と型の乖離を作らない）。
+      .query<Omit<CreatedReservation, 'in_car'>>(
         `INSERT INTO Reservation (user_id, spot_id, start_time, end_time)
          OUTPUT INSERTED.id, INSERTED.spot_id, INSERTED.start_time, INSERTED.end_time,
                 INSERTED.status, INSERTED.created_at
@@ -208,7 +214,8 @@ export class SqlReservationsRepository implements ReservationsRepository {
     if (row === undefined) {
       throw new Error('Reservation の INSERT で行を取得できませんでした');
     }
-    return row;
+    // 作成直後は UsageRecord が無いので在車していない。
+    return { ...row, in_car: false };
   }
 
   /** @inheritDoc */
@@ -221,7 +228,11 @@ export class SqlReservationsRepository implements ReservationsRepository {
       .input('user_id', mssql.UniqueIdentifier, userId)
       .input('status', mssql.VarChar(20), status ?? null)
       .query<ReservationRow>(
-        `SELECT id, spot_id, start_time, end_time, status, created_at
+        `SELECT id, spot_id, start_time, end_time, status, created_at,
+                CAST(CASE WHEN EXISTS (
+                  SELECT 1 FROM UsageRecord u
+                  WHERE u.reservation_id = Reservation.id AND u.exit_time IS NULL
+                ) THEN 1 ELSE 0 END AS BIT) AS in_car
          FROM Reservation
          WHERE user_id = @user_id
            AND (@status IS NULL OR status = @status)
@@ -238,7 +249,11 @@ export class SqlReservationsRepository implements ReservationsRepository {
       .input('id', mssql.UniqueIdentifier, id)
       .input('user_id', mssql.UniqueIdentifier, userId)
       .query<ReservationRow>(
-        `SELECT id, spot_id, start_time, end_time, status, created_at
+        `SELECT id, spot_id, start_time, end_time, status, created_at,
+                CAST(CASE WHEN EXISTS (
+                  SELECT 1 FROM UsageRecord u
+                  WHERE u.reservation_id = Reservation.id AND u.exit_time IS NULL
+                ) THEN 1 ELSE 0 END AS BIT) AS in_car
          FROM Reservation
          WHERE id = @id AND user_id = @user_id`,
       );

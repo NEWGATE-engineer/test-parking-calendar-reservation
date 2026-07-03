@@ -485,6 +485,13 @@ components:
           type: number
           nullable: true
           description: 予約枠の見込み額（作成・変更時に返す。確定額は Fee）
+        in_car:
+          type: boolean
+          description: >
+            在車中か（その予約に open な UsageRecord ＝ exit_time 未記録の入庫があるか）。
+            判定は occupancy ではなく UsageRecord の有無で行う（在車判定の真実源）。
+            クライアントの表示・出し分けに使える情報で、この値自体は API のドメイン制約ではない
+            （finish は在車中でも受け付ける＝ADR 0009 の在車分岐）。
 
     GateDownRequest:
       type: object

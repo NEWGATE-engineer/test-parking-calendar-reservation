@@ -83,6 +83,8 @@ export class FinishService {
         end_time: effectiveEnd,
         status,
         created_at: r.created_at,
+        // 在車中なら完了せず終了申告のみ＝まだ在車（true）。空車なら完了済みで false。
+        in_car: parked,
       };
     });
 
@@ -95,6 +97,7 @@ export class FinishService {
       status: result.status,
       created_at: result.created_at.toISOString(),
       estimated_slot_fee: estimateSlotFee(result.start_time, result.end_time, config.reservation),
+      in_car: result.in_car,
     };
   }
 }

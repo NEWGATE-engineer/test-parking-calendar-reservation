@@ -38,6 +38,8 @@ export interface ReservationResponse {
   created_at: string;
   /** 予約枠の見込み額（円）。確定額は Fee（完了時）。 */
   estimated_slot_fee: number;
+  /** 在車中か（open な UsageRecord の有無）。クライアントの表示・出し分けに使える情報。 */
+  in_car: boolean;
 }
 
 /**
@@ -211,7 +213,8 @@ export class ReservationsService {
         throw new AppError(409, 'not_modifiable', '予約の状態が変化したため変更できません', false);
       }
 
-      // created_at・status（reserved のまま）は据え置き、変更後の値で返す
+      // created_at・status（reserved のまま）は据え置き、変更後の値で返す。
+      // 変更は reserved のみ可＝まだ入庫していないので在車していない（in_car=false）。
       return {
         id,
         spot_id: spotId,
@@ -219,6 +222,7 @@ export class ReservationsService {
         end_time: end,
         status: current.status,
         created_at: current.created_at,
+        in_car: false,
       };
     });
 
@@ -263,6 +267,7 @@ export class ReservationsService {
       status: row.status,
       created_at: row.created_at.toISOString(),
       estimated_slot_fee: estimatedSlotFee,
+      in_car: row.in_car,
     };
   }
 }

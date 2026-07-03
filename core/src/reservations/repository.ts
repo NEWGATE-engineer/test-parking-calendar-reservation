@@ -36,6 +36,8 @@ export interface ReservationRow {
   end_time: Date;
   status: ReservationStatus;
   created_at: Date;
+  /** 在車中か（open な UsageRecord の有無）。利用終了ボタンの活性判定などに使う。 */
+  in_car: boolean;
 }
 
 /** 予約作成の競合判定に必要な区画情報（デバイス健全性の素材）。 */
@@ -61,6 +63,8 @@ export interface CreatedReservation {
   end_time: Date;
   status: ReservationStatus;
   created_at: Date;
+  /** 作成直後は必ず在車していない（open UsageRecord 無し）ので false。 */
+  in_car: boolean;
 }
 
 /** 予約変更の条件付き UPDATE 入力（マージ後の最終値）。 */
@@ -208,7 +212,8 @@ export class SqlReservationsRepository implements ReservationsRepository {
     if (row === undefined) {
       throw new Error('Reservation の INSERT で行を取得できませんでした');
     }
-    return row;
+    // 作成直後は UsageRecord が無いので在車していない。
+    return { ...row, in_car: false };
   }
 
   /** @inheritDoc */
@@ -221,7 +226,11 @@ export class SqlReservationsRepository implements ReservationsRepository {
       .input('user_id', mssql.UniqueIdentifier, userId)
       .input('status', mssql.VarChar(20), status ?? null)
       .query<ReservationRow>(
-        `SELECT id, spot_id, start_time, end_time, status, created_at
+        `SELECT id, spot_id, start_time, end_time, status, created_at,
+                CAST(CASE WHEN EXISTS (
+                  SELECT 1 FROM UsageRecord u
+                  WHERE u.reservation_id = Reservation.id AND u.exit_time IS NULL
+                ) THEN 1 ELSE 0 END AS BIT) AS in_car
          FROM Reservation
          WHERE user_id = @user_id
            AND (@status IS NULL OR status = @status)
@@ -238,7 +247,11 @@ export class SqlReservationsRepository implements ReservationsRepository {
       .input('id', mssql.UniqueIdentifier, id)
       .input('user_id', mssql.UniqueIdentifier, userId)
       .query<ReservationRow>(
-        `SELECT id, spot_id, start_time, end_time, status, created_at
+        `SELECT id, spot_id, start_time, end_time, status, created_at,
+                CAST(CASE WHEN EXISTS (
+                  SELECT 1 FROM UsageRecord u
+                  WHERE u.reservation_id = Reservation.id AND u.exit_time IS NULL
+                ) THEN 1 ELSE 0 END AS BIT) AS in_car
          FROM Reservation
          WHERE id = @id AND user_id = @user_id`,
       );

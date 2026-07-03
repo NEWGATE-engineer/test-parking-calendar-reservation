@@ -37,6 +37,7 @@ describe('FinishService.finish', () => {
     // 在車中は完了しない
     expect(repo.completeReservation).not.toHaveBeenCalled();
     expect(res.status).toBe('active');
+    expect(res.in_car).toBe(true); // まだ在車＝出庫後に完了する
   });
 
   it('空車（open なし）: 完了確定＋Fee を INSERT', async () => {
@@ -46,6 +47,7 @@ describe('FinishService.finish', () => {
     expect(repo.completeReservation).toHaveBeenCalled();
     expect(repo.insertFee).toHaveBeenCalled();
     expect(res.status).toBe('completed');
+    expect(res.in_car).toBe(false); // 出庫済みで完了
   });
 
   it('空車だが競合負け（completeRows=0）: Fee を入れず status 据え置き', async () => {

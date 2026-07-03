@@ -485,6 +485,11 @@ components:
           type: number
           nullable: true
           description: 予約枠の見込み額（作成・変更時に返す。確定額は Fee）
+        in_car:
+          type: boolean
+          description: >
+            在車中か（open な UsageRecord の有無）。クライアントが「利用終了」ボタンの活性
+            （在車中は不可）などに使う。判定は occupancy ではなく UsageRecord の有無で行う。
 
     GateDownRequest:
       type: object

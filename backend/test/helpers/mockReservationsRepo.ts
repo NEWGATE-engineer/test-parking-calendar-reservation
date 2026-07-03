@@ -89,6 +89,7 @@ function defaultOwned(): ReservationRow {
     end_time: new Date('2099-06-25T11:00:00Z'),
     status: 'reserved',
     created_at: new Date('2026-06-25T00:00:00Z'),
+    in_car: false,
   };
 }
 
@@ -106,5 +107,6 @@ function defaultCreated(input: InsertReservationInput): CreatedReservation {
     end_time: input.end,
     status: 'reserved',
     created_at: new Date('2026-06-25T00:00:00Z'),
+    in_car: false,
   };
 }

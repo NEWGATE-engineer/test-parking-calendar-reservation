@@ -104,7 +104,7 @@ describe('ReservationsService.create', () => {
 });
 
 /** reserved の所有予約1件（2099年・1時間枠）。 */
-function ownedReserved(): ReservationRow {
+function ownedReserved(inCar = false): ReservationRow {
   return {
     id: 'resv-1',
     spot_id: 'spot-1',
@@ -112,6 +112,7 @@ function ownedReserved(): ReservationRow {
     end_time: new Date('2099-06-25T11:00:00Z'),
     status: 'reserved',
     created_at: new Date('2026-06-25T00:00:00Z'),
+    in_car: inCar,
   };
 }
 
@@ -128,6 +129,12 @@ describe('ReservationsService.list', () => {
     const repo = makeMockReservationsRepo({ reservations: [] });
     await new ReservationsService(repo, fakeTxRunner).list('user-1', 'cancelled');
     expect(repo.listReservations).toHaveBeenCalledWith('user-1', 'cancelled');
+  });
+
+  it('in_car を行からそのままレスポンスへ通す', async () => {
+    const repo = makeMockReservationsRepo({ reservations: [ownedReserved(true)] });
+    const res = await new ReservationsService(repo, fakeTxRunner).list('user-1');
+    expect(res[0]?.in_car).toBe(true);
   });
 });
 

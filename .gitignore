@@ -19,6 +19,11 @@ mobile/.flutter-plugins*
 # Claude Code（個人設定はコミットしない。agents/commands/CLAUDE.md は共有）
 .claude/settings.local.json
 
+# 個人導入のスキル（skills CLI・個人アダプト。共有スキルは .claude/skills/<name>/ を明示コミット）
+.agents/
+skills-lock.json
+.claude/skills/grill-me
+
 # その他
 .DS_Store
 

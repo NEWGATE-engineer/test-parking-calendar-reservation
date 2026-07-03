@@ -18,7 +18,7 @@ const _pollTimeout = Duration(minutes: 2);
 /// テストで仮想時間（tester.pump(interval)）を進めて打ち切りパスを検証できるようにする。
 final _maxPollTicks = _pollTimeout.inMilliseconds ~/ _pollInterval.inMilliseconds;
 
-/// 予約詳細（一覧から id で引く）。状態に応じてキャンセル・DOWN（入庫）を出し分ける。
+/// 予約詳細（一覧から id で引く）。状態に応じて DOWN（入庫）・利用終了・キャンセルと料金表示を出し分ける。
 ///
 /// DOWN 成功後は在車検知（テレメトリ→active 遷移）を短間隔ポーリングで待つ（入庫待ち）。
 /// active になるか上限時間で打ち切る（SQL サーバーレスを無闇に起こさないよう上限を切る）。
@@ -213,7 +213,8 @@ class _ReservationDetailScreenState extends ConsumerState<ReservationDetailScree
 }
 
 /// 詳細の本文。予約情報・料金・状態に応じたアクション（DOWN・利用終了・キャンセル）を表示する。
-class _DetailBody extends ConsumerWidget {
+/// 料金は自前で Provider を購読する {@link _MoneySection} に委ねるため、ここは ref 不要の StatelessWidget。
+class _DetailBody extends StatelessWidget {
   const _DetailBody({
     required this.reservation,
     required this.waitingEntry,
@@ -231,7 +232,7 @@ class _DetailBody extends ConsumerWidget {
   final VoidCallback onFinish;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final r = reservation;
     final now = DateTime.now();
     final gateDownEnabled = canGateDown(

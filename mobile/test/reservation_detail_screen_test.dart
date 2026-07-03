@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,15 +11,32 @@ import 'package:mobile/src/reservations/reservation_detail_screen.dart';
 import 'package:mobile/src/reservations/reservations_repository.dart';
 
 /// 予約一覧を返し、cancel/gateDown/finish/fee を記録・差し替えるフェイク。
+/// finish 後は一覧の該当予約を更新後の値に差し替え、実際の状態遷移（再描画）を模倣する。
 class FakeReservationsRepository extends ReservationsRepository {
-  FakeReservationsRepository(this.list, {this.gateDownError, this.fee, this.finishResult})
-      : super(Dio());
+  FakeReservationsRepository(
+    this._list, {
+    this.gateDownError,
+    this.fee,
+    this.feeError,
+    this.feeCompleter,
+    this.finishError,
+    this.finishResult,
+  }) : super(Dio());
 
-  final List<Reservation> list;
+  final List<Reservation> _list;
   final ApiException? gateDownError;
 
   /// fetchFee が返す料金（completed の詳細で使う）。
   final Fee? fee;
+
+  /// fetchFee が投げるエラー（error 分岐の検証）。
+  final ApiException? feeError;
+
+  /// 未完了の Completer を渡すと fetchFee がそれを待つ（loading 分岐の検証）。
+  final Completer<Fee>? feeCompleter;
+
+  /// finish が投げるエラー（失敗系の検証）。
+  final ApiException? finishError;
 
   /// finish が返す更新後予約（既定は completed）。
   final Reservation? finishResult;
@@ -27,7 +46,7 @@ class FakeReservationsRepository extends ReservationsRepository {
   bool finishCalled = false;
 
   @override
-  Future<List<Reservation>> fetchReservations() async => list;
+  Future<List<Reservation>> fetchReservations() async => _list;
 
   @override
   Future<void> cancel(String id) async {
@@ -44,7 +63,8 @@ class FakeReservationsRepository extends ReservationsRepository {
   @override
   Future<Reservation> finish(String id) async {
     finishCalled = true;
-    return finishResult ??
+    if (finishError != null) throw finishError!;
+    final updated = finishResult ??
         Reservation(
           id: id,
           spotId: 's1',
@@ -54,10 +74,16 @@ class FakeReservationsRepository extends ReservationsRepository {
           createdAt: DateTime.utc(2026, 7, 1),
           estimatedSlotFee: 100,
         );
+    // 実際の状態遷移を模倣: 次の fetchReservations は更新後（completed）を返す。
+    final i = _list.indexWhere((r) => r.id == id);
+    if (i >= 0) _list[i] = updated;
+    return updated;
   }
 
   @override
   Future<Fee> fetchFee(String id) async {
+    if (feeError != null) throw feeError!;
+    if (feeCompleter != null) return feeCompleter!.future;
     return fee ??
         const Fee(
           reservationId: 'r1',
@@ -233,7 +259,7 @@ void main() {
     expect(find.widgetWithText(FilledButton, '利用を終了する'), findsNothing);
   });
 
-  testWidgets('利用終了: 確認→finish 呼び出し→完了メッセージ', (tester) async {
+  testWidgets('利用終了: 確認→finish→完了メッセージ＋画面が完了状態へ再描画', (tester) async {
     final repo = await pump(tester, FakeReservationsRepository([active(inCar: false)]));
 
     await tester.tap(find.widgetWithText(FilledButton, '利用を終了する'));
@@ -243,24 +269,102 @@ void main() {
 
     expect(repo.finishCalled, true);
     expect(find.textContaining('料金が確定しました'), findsOneWidget);
+    // invalidate 後の再取得で completed に遷移 → ボタンが消え、確定料金が出る
+    expect(find.widgetWithText(FilledButton, '利用を終了する'), findsNothing);
+    expect(find.text('料金（確定）'), findsOneWidget);
+  });
+
+  testWidgets('利用終了が not_finishable: エラー SnackBar・ボタンは残る（再試行可）', (tester) async {
+    final repo = await pump(
+      tester,
+      FakeReservationsRepository(
+        [active(inCar: false)],
+        finishError: ApiException(statusCode: 409, code: 'not_finishable', message: 'x'),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '利用を終了する'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '利用終了'));
+    await tester.pumpAndSettle();
+
+    expect(repo.finishCalled, true);
+    expect(find.textContaining('利用終了できません'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '利用を終了する'), findsOneWidget); // busy 解除で残る
+  });
+
+  testWidgets('利用終了がネットワーク等の一般エラー: message を表示', (tester) async {
+    await pump(
+      tester,
+      FakeReservationsRepository(
+        [active(inCar: false)],
+        finishError: ApiException(statusCode: null, code: 'network', message: '通信に失敗しました'),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '利用を終了する'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '利用終了'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('通信に失敗しました'), findsOneWidget);
   });
 
   // --- 料金表示 ---
 
+  Reservation completed() => Reservation(
+        id: 'r1',
+        spotId: 's1',
+        startTime: DateTime.utc(2026, 7, 2, 1),
+        endTime: DateTime.utc(2026, 7, 2, 2),
+        status: 'completed',
+        createdAt: DateTime.utc(2026, 7, 1),
+      );
+
   testWidgets('完了予約: 確定料金（枠＋超過＝total）を表示', (tester) async {
-    final completed = Reservation(
-      id: 'r1',
-      spotId: 's1',
-      startTime: DateTime.utc(2026, 7, 2, 1),
-      endTime: DateTime.utc(2026, 7, 2, 2),
-      status: 'completed',
-      createdAt: DateTime.utc(2026, 7, 1),
-    );
-    await pump(tester, FakeReservationsRepository([completed]));
+    await pump(tester, FakeReservationsRepository([completed()]));
     await tester.pumpAndSettle(); // feeProvider の解決
 
     expect(find.text('料金（確定）'), findsOneWidget);
     expect(find.text('¥300'), findsOneWidget);
+  });
+
+  testWidgets('完了予約: fee 取得失敗 → 取得できませんでした', (tester) async {
+    await pump(
+      tester,
+      FakeReservationsRepository(
+        [completed()],
+        feeError: ApiException(statusCode: 404, code: 'not_found', message: 'x'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('取得できませんでした'), findsOneWidget);
+  });
+
+  testWidgets('完了予約: fee 取得中はスピナー', (tester) async {
+    // スピナーは無限アニメで pumpAndSettle が止まらないため、ここでは pump ヘルパーを使わず手動 pump。
+    final gate = Completer<Fee>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          reservationsRepositoryProvider.overrideWithValue(
+            FakeReservationsRepository([completed()], feeCompleter: gate),
+          ),
+        ],
+        child: const MaterialApp(home: ReservationDetailScreen(id: 'r1')),
+      ),
+    );
+    await tester.pump(); // reservationsProvider 解決
+    await tester.pump(); // feeProvider は loading（gate 未完了）
+
+    expect(find.byType(CircularProgressIndicator), findsWidgets);
+
+    // 後片付け: 完了させて settle（保留 Future を残さない）。
+    gate.complete(
+      const Fee(reservationId: 'r1', slotFee: 200, overstayFee: 0, total: 200, status: 'confirmed'),
+    );
+    await tester.pumpAndSettle();
   });
 
   testWidgets('完了前: 見込み額（予約枠）を表示', (tester) async {

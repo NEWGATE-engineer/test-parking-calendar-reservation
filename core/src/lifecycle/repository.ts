@@ -11,11 +11,11 @@ import { type FeeInput, SqlCompletionRepository } from '../reservations/completi
  * - **autoComplete** は予約ごとに確定料金（枠＋超過）を Fee へ INSERT する必要があるため、
  *   候補を {@link findCompletable} で抽出し、サービスが1件ずつトランザクションで確定する。
  *
- * `completeReservation` / `insertFee` はテレメトリの出庫確定（onExitDetected）と**同一の共有
- * ドメイン操作**（同じ SQL）。タイマーはイベント欠落時の安全網としてこれを再実行する。両者は
- * 条件付き UPDATE（`WHERE status IN ('active','overstay')`）＋ `UQ_Fee_resv` で、同時に走っても
- * 勝者1件だけが Fee を INSERT する（二重課金しない）。将来 `reservations/` 配下の completion repo へ
- * 抽出する候補だが、MVP は重複を許容する。
+ * `completeReservation` / `insertFee` は共有の {@link SqlCompletionRepository} へ**委譲**する
+ * （ADR 0009 で `reservations/completion.ts` に抽出済み）。出庫確定（onExitDetected）・
+ * 利用終了申告（finish）と同一の完了確定 SQL を1箇所に集約し、条件付き UPDATE
+ * （`WHERE status IN ('active','overstay')`）＋ `UQ_Fee_resv` で、複数経路が同時に走っても
+ * 勝者1件だけが Fee を INSERT する（二重課金しない）。タイマーはイベント欠落時の安全網。
  *
  * @module lifecycle/repository
  */

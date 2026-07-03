@@ -24,7 +24,7 @@ export function createFeeRouter(repo: FeeRepository = new SqlFeeRepository()): R
   const service = new FeeService(repo);
   const router = Router();
 
-  /** GET /reservations/:id/fee — 料金取得（200・未確定は pending）。要認証。404。 */
+  /** GET /reservations/:id/fee — 料金取得（200・未確定は pending）。要認証。404 / 422（id 不正）。 */
   router.get(
     '/:id/fee',
     requireAuth,

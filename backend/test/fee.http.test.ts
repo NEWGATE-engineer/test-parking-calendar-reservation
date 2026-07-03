@@ -25,6 +25,13 @@ describe('GET /reservations/:id/fee', () => {
     expect(res.status).toBe(401);
   });
 
+  it('id が UUID でないと 422', async () => {
+    const res = await request(buildApp())
+      .get('/reservations/not-uuid/fee')
+      .set('authorization', auth);
+    expect(res.status).toBe(422);
+  });
+
   it('Fee 未記録 → 200・pending', async () => {
     const res = await request(buildApp({ exists: true, fee: null }))
       .get(PATH)

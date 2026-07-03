@@ -33,7 +33,7 @@ export function createFinishRouter(
   const service = new FinishService(repo, runTx);
   const router = Router();
 
-  /** POST /reservations/:id/finish — 利用終了申告（200）。要認証。404 / 409。 */
+  /** POST /reservations/:id/finish — 利用終了申告（200）。要認証。404 / 409 / 422（id 不正）。 */
   router.post(
     '/:id/finish',
     requireAuth,

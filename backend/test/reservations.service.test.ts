@@ -139,6 +139,17 @@ describe('ReservationsService.list', () => {
 });
 
 describe('ReservationsService.update', () => {
+  it('変更は reserved のみ＝在車なし。current.in_car に関わらず in_car:false を返す', async () => {
+    const repo = makeMockReservationsRepo({
+      owned: ownedReserved(true), // 万一 in_car=true でも
+      spot: { id: 'spot-1', last_seen_at: new Date() },
+    });
+    const res = await new ReservationsService(repo, fakeTxRunner).update('user-1', 'resv-1', {
+      end: new Date('2099-06-25T12:00:00Z'),
+    });
+    expect(res.in_car).toBe(false); // reserved は在車しない
+  });
+
   it('部分更新（end のみ）に成功し、見込み料金を再計算する', async () => {
     const repo = makeMockReservationsRepo({
       owned: ownedReserved(),

@@ -36,7 +36,7 @@ export interface ReservationRow {
   end_time: Date;
   status: ReservationStatus;
   created_at: Date;
-  /** 在車中か（open な UsageRecord の有無）。利用終了ボタンの活性判定などに使う。 */
+  /** 在車中か（open な UsageRecord ＝ exit_time 未記録の入庫があるか）。在車判定の真実源。 */
   in_car: boolean;
 }
 
@@ -202,7 +202,9 @@ export class SqlReservationsRepository implements ReservationsRepository {
       .input('spot_id', mssql.UniqueIdentifier, input.spotId)
       .input('start', mssql.DateTime2(3), input.start)
       .input('end', mssql.DateTime2(3), input.end)
-      .query<CreatedReservation>(
+      // OUTPUT には in_car 列は無い（在車は UsageRecord 由来で INSERT 直後は必ず false）。
+      // 型も OUTPUT 実列に合わせ、in_car はコード側で付与する（列と型の乖離を作らない）。
+      .query<Omit<CreatedReservation, 'in_car'>>(
         `INSERT INTO Reservation (user_id, spot_id, start_time, end_time)
          OUTPUT INSERTED.id, INSERTED.spot_id, INSERTED.start_time, INSERTED.end_time,
                 INSERTED.status, INSERTED.created_at

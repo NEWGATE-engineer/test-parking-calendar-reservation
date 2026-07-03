@@ -38,7 +38,7 @@ export interface ReservationResponse {
   created_at: string;
   /** 予約枠の見込み額（円）。確定額は Fee（完了時）。 */
   estimated_slot_fee: number;
-  /** 在車中か（open な UsageRecord の有無）。利用終了ボタンの活性判定などに使う。 */
+  /** 在車中か（open な UsageRecord の有無）。クライアントの表示・出し分けに使える情報。 */
   in_car: boolean;
 }
 

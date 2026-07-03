@@ -157,6 +157,7 @@ describe('GET /reservations', () => {
             end_time: new Date('2099-06-25T11:00:00Z'),
             status: 'reserved',
             created_at: new Date('2026-06-25T00:00:00Z'),
+            in_car: true,
           },
         ],
       }),
@@ -166,6 +167,8 @@ describe('GET /reservations', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body[0]).toMatchObject({ id: RESV_ID, status: 'reserved', estimated_slot_fee: 200 });
+    // in_car が HTTP レスポンスにそのまま載る（本 PR の主目的の HTTP 層検証）
+    expect(res.body[0].in_car).toBe(true);
   });
 
   it('未知の status は 422', async () => {

@@ -10,6 +10,7 @@ class Reservation {
     required this.status,
     required this.createdAt,
     this.estimatedSlotFee,
+    this.inCar = false,
   });
 
   final String id;
@@ -29,6 +30,9 @@ class Reservation {
   /// 予約枠の見込み額（作成・変更時に返る。確定額は Fee）。null あり。
   final num? estimatedSlotFee;
 
+  /// 在車中か（open な UsageRecord の有無）。利用終了ボタンの活性判定に使う。
+  final bool inCar;
+
   factory Reservation.fromJson(Map<String, dynamic> json) {
     return Reservation(
       id: json['id'] as String,
@@ -38,6 +42,7 @@ class Reservation {
       status: json['status'] as String? ?? 'reserved',
       createdAt: DateTime.parse(json['created_at'] as String),
       estimatedSlotFee: json['estimated_slot_fee'] as num?,
+      inCar: json['in_car'] as bool? ?? false,
     );
   }
 }

@@ -18,7 +18,7 @@ const _pollTimeout = Duration(minutes: 2);
 /// テストで仮想時間（tester.pump(interval)）を進めて打ち切りパスを検証できるようにする。
 final _maxPollTicks = _pollTimeout.inMilliseconds ~/ _pollInterval.inMilliseconds;
 
-/// 予約詳細（一覧から id で引く）。状態に応じてキャンセル・DOWN（入庫）を出し分ける。
+/// 予約詳細（一覧から id で引く）。状態に応じて DOWN（入庫）・利用終了・キャンセルと料金表示を出し分ける。
 ///
 /// DOWN 成功後は在車検知（テレメトリ→active 遷移）を短間隔ポーリングで待つ（入庫待ち）。
 /// active になるか上限時間で打ち切る（SQL サーバーレスを無闇に起こさないよう上限を切る）。
@@ -79,6 +79,7 @@ class _ReservationDetailScreenState extends ConsumerState<ReservationDetailScree
             busy: _busy,
             onCancel: () => _cancel(r),
             onGateDown: () => _gateDown(r),
+            onFinish: () => _finish(r),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -123,6 +124,38 @@ class _ReservationDetailScreenState extends ConsumerState<ReservationDetailScree
       _startPolling();
     } on ApiException catch (e) {
       _snack(_gateDownError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _finish(Reservation r) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('利用を終了'),
+        content: const Text('この予約の利用を終了しますか？（料金が確定します）'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('やめる')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('利用終了')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final updated = await ref.read(reservationsRepositoryProvider).finish(r.id);
+      ref.invalidate(reservationsProvider);
+      if (updated.status == 'completed') {
+        // 完了＝料金確定。料金表示を最新化してメッセージ。
+        ref.invalidate(feeProvider(r.id));
+        _snack('利用を終了しました。料金が確定しました。');
+      } else {
+        // 在車中に呼ばれた場合（通常はボタンを出さないが保険）＝出庫検知で完了。
+        _snack('利用終了を受け付けました。出庫後に完了します。');
+      }
+    } on ApiException catch (e) {
+      _snack(e.code == 'not_finishable' ? 'この予約は利用終了できません。' : e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -179,7 +212,8 @@ class _ReservationDetailScreenState extends ConsumerState<ReservationDetailScree
   }
 }
 
-/// 詳細の本文。予約情報と、状態に応じたアクション（キャンセル・DOWN）を表示する。
+/// 詳細の本文。予約情報・料金・状態に応じたアクション（DOWN・利用終了・キャンセル）を表示する。
+/// 料金は自前で Provider を購読する {@link _MoneySection} に委ねるため、ここは ref 不要の StatelessWidget。
 class _DetailBody extends StatelessWidget {
   const _DetailBody({
     required this.reservation,
@@ -187,6 +221,7 @@ class _DetailBody extends StatelessWidget {
     required this.busy,
     required this.onCancel,
     required this.onGateDown,
+    required this.onFinish,
   });
 
   final Reservation reservation;
@@ -194,6 +229,7 @@ class _DetailBody extends StatelessWidget {
   final bool busy;
   final VoidCallback onCancel;
   final VoidCallback onGateDown;
+  final VoidCallback onFinish;
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +242,7 @@ class _DetailBody extends StatelessWidget {
       end: r.endTime,
     );
     final cancelEnabled = canCancel(r.status);
+    final finishEnabled = canFinish(status: r.status, inCar: r.inCar);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -225,6 +262,7 @@ class _DetailBody extends StatelessWidget {
           title: const Text('時間'),
           subtitle: Text('${formatLocalDateTime(r.startTime)} 〜 ${formatLocalDateTime(r.endTime)}'),
         ),
+        _MoneySection(reservation: r),
         const Divider(height: 32),
         if (waitingEntry) ...[
           const Row(
@@ -246,6 +284,14 @@ class _DetailBody extends StatelessWidget {
           icon: const Icon(Icons.vertical_align_bottom),
           label: const Text('入庫する（DOWN）'),
         ),
+        if (finishEnabled) ...[
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: busy ? null : onFinish,
+            icon: const Icon(Icons.flag_outlined),
+            label: const Text('利用を終了する'),
+          ),
+        ],
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: (busy || waitingEntry || !cancelEnabled) ? null : onCancel,
@@ -256,4 +302,56 @@ class _DetailBody extends StatelessWidget {
     );
   }
 }
+
+/// 料金セクション。完了後は確定額（fee GET）、完了前は見込み額（予約の estimated_slot_fee）を表示。
+/// cancelled / no_show は料金を表示しない。
+class _MoneySection extends ConsumerWidget {
+  const _MoneySection({required this.reservation});
+
+  final Reservation reservation;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final r = reservation;
+
+    // 完了：確定額を fee GET から。
+    if (showsConfirmedFee(r.status)) {
+      return ref.watch(feeProvider(r.id)).when(
+        data: (fee) => ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('料金（確定）'),
+          subtitle: Text('枠 ¥${_yen(fee.slotFee)} ＋ 超過 ¥${_yen(fee.overstayFee)}'),
+          trailing: Text('¥${_yen(fee.total)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        loading: () => const ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('料金（確定）'),
+          trailing: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+        error: (_, _) => const ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('料金（確定）'),
+          subtitle: Text('取得できませんでした'),
+        ),
+      );
+    }
+
+    // 取消・ノーショーは料金なし。
+    if (r.status == 'cancelled' || r.status == 'no_show') {
+      return const SizedBox.shrink();
+    }
+
+    // 完了前：予約枠の見込み額（超過は完了時に確定）。
+    final est = reservation.estimatedSlotFee;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('料金（見込み）'),
+      subtitle: const Text('予約枠のみ。超過は完了時に確定します。'),
+      trailing: Text(est == null ? '—' : '¥${_yen(est)}'),
+    );
+  }
+}
+
+/// 金額を円の整数表記にする（端数は四捨五入）。
+String _yen(num v) => v.round().toString();
 

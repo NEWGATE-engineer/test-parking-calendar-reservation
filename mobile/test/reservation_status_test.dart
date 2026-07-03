@@ -45,4 +45,26 @@ void main() {
       expect(canGateDown(status: 'reserved', now: end, start: start, end: end), true);
     });
   });
+
+  group('canFinish', () {
+    test('active/overstay かつ 出庫済み（!inCar）→ true', () {
+      expect(canFinish(status: 'active', inCar: false), true);
+      expect(canFinish(status: 'overstay', inCar: false), true);
+    });
+    test('在車中（inCar）は false（出庫してから押す運用）', () {
+      expect(canFinish(status: 'active', inCar: true), false);
+      expect(canFinish(status: 'overstay', inCar: true), false);
+    });
+    test('reserved/completed/cancelled は false', () {
+      expect(canFinish(status: 'reserved', inCar: false), false);
+      expect(canFinish(status: 'completed', inCar: false), false);
+      expect(canFinish(status: 'cancelled', inCar: false), false);
+    });
+  });
+
+  test('showsConfirmedFee: completed のみ true', () {
+    expect(showsConfirmedFee('completed'), true);
+    expect(showsConfirmedFee('active'), false);
+    expect(showsConfirmedFee('reserved'), false);
+  });
 }
